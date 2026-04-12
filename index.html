@@ -179,6 +179,19 @@
     display: flex; align-items: center; justify-content: center;
   }
   #history-toggle svg { width: 18px; height: 18px; fill: #8a7a6a; }
+  #lang-toggle {
+    position: fixed; top: 14px; right: 14px; z-index: 100;
+    height: 36px; border-radius: 18px;
+    border: none; cursor: pointer;
+    background: rgba(255,255,255,0.7); backdrop-filter: blur(8px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 12px; gap: 5px;
+    font-size: 14px; color: #5a4a3a;
+    transition: transform 0.15s;
+  }
+  #lang-toggle:active { transform: scale(0.95); }
+  #lang-toggle .flag { font-size: 18px; line-height: 1; }
   #history-panel {
     position: fixed; top: 0; left: 0; bottom: 0; width: 300px;
     background: rgba(253,250,246,0.97); backdrop-filter: blur(12px);
@@ -424,6 +437,12 @@
   <!-- History toggle (left) -->
   <button id="history-toggle" onclick="toggleHistory()">
     <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+  </button>
+
+  <!-- Language toggle (right) -->
+  <button id="lang-toggle" onclick="toggleLang()">
+    <span class="flag" id="lang-flag">🇺🇸</span>
+    <span id="lang-label">EN</span>
   </button>
 
   <!-- Chat History Panel -->
@@ -691,14 +710,10 @@ function setRole(role) {
   document.getElementById('cfg-system-prompt').value = config.systemPrompt;
   // Update placeholder
   const input = document.getElementById('text-input');
-  if (role === 'zen') {
-    input.placeholder = '说说你现在卡在哪里...';
-  } else {
-    input.placeholder = '聊聊你现在在纠结什么...';
-  }
+  input.placeholder = role === 'zen' ? t('zenPlaceholder') : t('ceoPlaceholder');
   // Clear conversation — new role, fresh start
   chatHistory = [];
-  showBubble(role === 'zen' ? '🧘 禅宗小僧模式' : '🚀 视感CEO模式');
+  showBubble(role === 'zen' ? t('zenBtn') : t('ceoBtn'));
   hideBubble(2000);
   // Save preference
   try { localStorage.setItem('avatar-role', role); } catch(e) {}
@@ -749,6 +764,89 @@ function saveConfig() {
 
 function toggleSettings() { document.getElementById('settings-panel').classList.toggle('open'); }
 function toggleHistory() { document.getElementById('history-panel').classList.toggle('open'); }
+
+// ===== i18n Language Toggle =====
+const I18N = {
+  zh: {
+    flag: '🇺🇸', label: 'EN',  // shows what you'll switch TO
+    title: '思想困惑引导者',
+    zenBtn: '🧘 禅宗小僧', ceoBtn: '🚀 视感CEO',
+    zenPlaceholder: '说说你现在卡在哪里...', ceoPlaceholder: '聊聊你现在在纠结什么...',
+    voiceHint: '点击说话',
+    thinkingBubble: '让我想想...',
+    noKeyMsg: '请先在 Settings 里填入 OpenAI API Key',
+    listenHint: '识别中...', notClear: '没听清，再说一次？',
+    sttError: '语音识别出错：', apiError: '出错了：',
+    ttsError: '语音网络错误：', cloneError: '语音克隆错误: ',
+    historyTitle: '聊天记录', historyEmpty: '还没有聊天记录', clearHistory: '清空聊天记录',
+    bgWarm: '🏠 暖光', bgBeach: '🏖 海边', bgMeadow: '🌿 草地', bgSnow: '❄️ 雪中', bgNight: '🌙 星夜',
+    loadText: '正在安住...',
+    greeting: '嗨！点我试试，或按麦克风说话'
+  },
+  en: {
+    flag: '🇨🇳', label: '中文',
+    title: 'Thought Guide',
+    zenBtn: '🧘 Zen Monk', ceoBtn: '🚀 CEO Mode',
+    zenPlaceholder: 'What are you stuck on right now...', ceoPlaceholder: 'What are you wrestling with...',
+    voiceHint: 'Tap to speak',
+    thinkingBubble: 'Let me think...',
+    noKeyMsg: 'Please enter your OpenAI API Key in Settings',
+    listenHint: 'Listening...', notClear: "Didn't catch that, try again?",
+    sttError: 'Speech error: ', apiError: 'Error: ',
+    ttsError: 'Voice network error: ', cloneError: 'Voice clone error: ',
+    historyTitle: 'Chat History', historyEmpty: 'No messages yet', clearHistory: 'Clear history',
+    bgWarm: '🏠 Warm', bgBeach: '🏖 Beach', bgMeadow: '🌿 Meadow', bgSnow: '❄️ Snow', bgNight: '🌙 Night',
+    loadText: 'Loading...',
+    greeting: 'Hey! Tap me or press the mic to talk'
+  }
+};
+
+let currentLang = 'zh';
+try { currentLang = localStorage.getItem('avatar-lang') || 'zh'; } catch(e) {}
+
+function t(key) { return (I18N[currentLang] || I18N.zh)[key] || I18N.zh[key] || key; }
+
+function applyLang() {
+  const s = I18N[currentLang];
+  // Toggle button shows what you switch TO
+  document.getElementById('lang-flag').textContent = s.flag;
+  document.getElementById('lang-label').textContent = s.label;
+  // Title
+  document.title = s.title;
+  // Role buttons
+  document.querySelectorAll('.role-btn').forEach(b => {
+    if (b.dataset.role === 'zen') b.textContent = s.zenBtn;
+    if (b.dataset.role === 'ceo') b.textContent = s.ceoBtn;
+  });
+  // Input placeholder
+  const input = document.getElementById('text-input');
+  input.placeholder = currentRole === 'zen' ? s.zenPlaceholder : s.ceoPlaceholder;
+  // Voice hint
+  document.getElementById('voice-hint').textContent = s.voiceHint;
+  // History panel
+  document.querySelector('#history-panel-header h2').textContent = s.historyTitle;
+  const emptyEl = document.getElementById('history-empty');
+  if (emptyEl) emptyEl.textContent = s.historyEmpty;
+  document.getElementById('clear-history-btn').textContent = s.clearHistory;
+  // Background buttons
+  const bgMap = { warm: 'bgWarm', beach: 'bgBeach', meadow: 'bgMeadow', snow: 'bgSnow', night: 'bgNight' };
+  document.querySelectorAll('.bg-btn').forEach(b => {
+    const k = bgMap[b.dataset.bg];
+    if (k && s[k]) b.textContent = s[k];
+  });
+  // Loading text
+  const lt = document.getElementById('load-text');
+  if (lt) lt.textContent = s.loadText;
+}
+
+function toggleLang() {
+  currentLang = currentLang === 'zh' ? 'en' : 'zh';
+  try { localStorage.setItem('avatar-lang', currentLang); } catch(e) {}
+  applyLang();
+}
+
+// Apply on load
+applyLang();
 
 // ===== Admin mode: show settings only with ?admin=1 =====
 (function checkAdmin() {
@@ -1039,8 +1137,8 @@ function useProxy() { return !config.openaiKey && _proxyAvailable; }
 
 async function transcribeAndSend(blob) {
   const proxy = await hasProxy();
-  if (!config.openaiKey && !proxy) { showBubble('请先在Settings填入OpenAI API Key'); hideBubble(4000); setState('idle'); return; }
-  setState('thinking'); voiceHint.textContent = '识别中...';
+  if (!config.openaiKey && !proxy) { showBubble(t('noKeyMsg')); hideBubble(4000); setState('idle'); return; }
+  setState('thinking'); voiceHint.textContent = t('listenHint');
   try {
     let res;
     if (useProxy()) {
@@ -1068,8 +1166,8 @@ async function transcribeAndSend(blob) {
     if (!res.ok) throw new Error((await res.json().catch(()=>({}))).error?.message || `${res.status}`);
     const text = (await res.json()).text?.trim();
     if (text) { textInput.value = text; sendMessage(text); }
-    else { showBubble('没听清，再说一次？'); hideBubble(3000); setState('idle'); }
-  } catch(e) { showBubble('语音识别出错：' + e.message); hideBubble(4000); setState('idle'); }
+    else { showBubble(t('notClear')); hideBubble(3000); setState('idle'); }
+  } catch(e) { showBubble(t('sttError') + e.message); hideBubble(4000); setState('idle'); }
 }
 
 // ===== Text =====
@@ -1078,8 +1176,8 @@ function sendText() { const t = textInput.value.trim(); if (!t) return; textInpu
 // ===== Main Flow =====
 async function sendMessage(text) {
   const proxy = await hasProxy();
-  if (!config.openaiKey && !proxy) { showBubble('请先在Settings填入OpenAI API Key'); hideBubble(5000); return; }
-  setState('thinking'); showBubble('让我想想...');
+  if (!config.openaiKey && !proxy) { showBubble(t('noKeyMsg')); hideBubble(5000); return; }
+  setState('thinking'); showBubble(t('thinkingBubble'));
   chatHistory.push({ role:'user', content: text });
   addToHistory('user', text);
   // Keep last ~30 turns in memory as conversational context for GPT
@@ -1109,7 +1207,7 @@ async function sendMessage(text) {
       speakWithBrowserTTS(reply);
     }
   } catch(err) {
-    showBubble('出错了：' + err.message); hideBubble(5000);
+    showBubble(t('apiError') + err.message); hideBubble(5000);
     setState('idle');
   }
 }
@@ -1421,7 +1519,7 @@ async function speakWithFishAudio(text) {
     return true;
   } catch(e) {
     console.error('[Fish Audio] Error:', e);
-    showBubble('语音网络错误：' + e.message);
+    showBubble(t('ttsError') + e.message);
     hideBubble(4000);
     return false;
   }
@@ -1466,7 +1564,7 @@ window.addEventListener('DOMContentLoaded', () => {
   setState('idle');
   checkFirstUse();
   if (config.openaiKey) {
-    setTimeout(() => { showBubble('嗨！点我试试，或按麦克风说话'); hideBubble(5000); }, 1200);
+    setTimeout(() => { showBubble(t('greeting')); hideBubble(5000); }, 1200);
   }
   // Register PWA service worker
   if ('serviceWorker' in navigator) {

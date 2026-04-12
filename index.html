@@ -963,6 +963,7 @@ chatBubble.addEventListener('click', () => {
 });
 
 function stopCurrentAudio() {
+  _ttsAbort = true; // Stop sentence queue
   try {
     if (currentAudioSource) { currentAudioSource.stop(); currentAudioSource = null; }
     if (window.speechSynthesis) window.speechSynthesis.cancel();
@@ -1313,82 +1314,111 @@ function getAudioCtx() {
 }
 
 // ===== Fish Audio TTS with AudioContext for lip sync =====
+// Split text into short sentences for faster TTS
+function splitSentences(text) {
+  // Split on Chinese/English sentence endings, keep chunks short
+  const parts = text.match(/[^。！？.!?\n]+[。！？.!?\n]?/g) || [text];
+  // Merge very short chunks together (< 8 chars)
+  const merged = [];
+  let buf = '';
+  for (const p of parts) {
+    buf += p;
+    if (buf.length >= 8) { merged.push(buf.trim()); buf = ''; }
+  }
+  if (buf.trim()) merged.push(buf.trim());
+  return merged.filter(s => s.length > 0);
+}
+
+// Fetch one TTS chunk
+async function fetchTTSChunk(text) {
+  const viaVercel = useProxy();
+  const hasOwnKeys = config.fishKey && config.fishRef;
+  let res;
+  if (viaVercel) {
+    res = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, format: 'mp3' })
+    });
+  } else if (hasOwnKeys) {
+    res = await fetch('https://api.fish.audio/v1/tts', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + config.fishKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ text, reference_id: config.fishRef, format: 'mp3', latency: 'normal' })
+    });
+  } else {
+    return null;
+  }
+  if (!res.ok) return null;
+  return await res.arrayBuffer();
+}
+
+// Play one audio buffer, returns promise that resolves when done
+function playAudioBuffer(arrayBuffer, isCartoon) {
+  return new Promise(async (resolve) => {
+    try {
+      const ctx = getAudioCtx();
+      const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+      const source = ctx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.playbackRate.value = isCartoon ? 1.45 : 1.05;
+
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.6;
+      source.connect(analyser);
+      analyser.connect(ctx.destination);
+
+      currentAudioSource = source;
+      if (window.avatar3D) window.avatar3D.startSpeaking(analyser);
+
+      source.onended = () => { resolve(); };
+      source.start(0);
+    } catch(e) { resolve(); }
+  });
+}
+
+let _ttsAbort = false;
 async function speakWithFishAudio(text) {
   const viaVercel = useProxy();
   const hasOwnKeys = config.fishKey && config.fishRef;
-  console.log('[Fish Audio] TTS, vercel:', viaVercel, 'ownKeys:', hasOwnKeys);
+  if (!viaVercel && !hasOwnKeys) return false;
+  console.log('[Fish Audio] TTS sentences mode');
+
+  _ttsAbort = false;
+  const isCartoon = voiceMode === 'cartoon';
+  const sentences = splitSentences(text);
 
   try {
-    const isCartoon = voiceMode === 'cartoon';
+    // Pre-fetch first sentence immediately
+    let nextFetch = fetchTTSChunk(sentences[0]);
 
-    let res;
-    if (viaVercel) {
-      // Vercel serverless proxy — server holds the keys
-      res = await fetch('/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, format: 'mp3' })
-      });
-    } else if (hasOwnKeys) {
-      // Direct call to Fish Audio API — user's own keys, no proxy needed
-      res = await fetch('https://api.fish.audio/v1/tts', {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer ' + config.fishKey,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          text: text,
-          reference_id: config.fishRef,
-          format: 'mp3',
-          latency: 'balanced'
-        })
-      });
-    } else {
-      console.log('[Fish Audio] No keys and no proxy');
-      return false;
+    for (let i = 0; i < sentences.length; i++) {
+      if (_ttsAbort) break;
+
+      // Wait for current chunk audio
+      const audioData = await nextFetch;
+
+      // Start fetching next chunk while current one plays
+      if (i + 1 < sentences.length) {
+        nextFetch = fetchTTSChunk(sentences[i + 1]);
+      }
+
+      if (!audioData) continue;
+      if (_ttsAbort) break;
+
+      // Play current chunk
+      await playAudioBuffer(audioData, isCartoon);
     }
 
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({ error: 'unknown' }));
-      console.error('[Fish Audio] Error:', errData);
-      showBubble('语音克隆错误: ' + (errData.error || res.status));
-      hideBubble(4000);
-      return false;
-    }
-
-    // Use AudioContext for lip sync analysis
-    const arrayBuffer = await res.arrayBuffer();
-    const ctx = getAudioCtx();
-    const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
-
-    const source = ctx.createBufferSource();
-    source.buffer = audioBuffer;
-    // Original: natural voice. Cartoon: pitch up for cute squeaky voice
-    source.playbackRate.value = isCartoon ? 1.45 : 1.05;
-
-    const analyser = ctx.createAnalyser();
-    analyser.fftSize = 256;
-    analyser.smoothingTimeConstant = 0.6;
-
-    source.connect(analyser);
-    analyser.connect(ctx.destination);
-
-    // Track for stop-on-tap
-    currentAudioSource = source;
-
-    if (window.avatar3D) window.avatar3D.startSpeaking(analyser);
-
-    return new Promise(resolve => {
-      source.onended = () => {
-        currentAudioSource = null;
-        if (window.avatar3D) window.avatar3D.stopSpeaking();
-        setState('idle');
-        hideBubble(4000); // Keep bubble 4s after speech ends
-        resolve(true);
-      };
-      source.start(0);
-    });
+    currentAudioSource = null;
+    if (window.avatar3D) window.avatar3D.stopSpeaking();
+    setState('idle');
+    hideBubble(4000);
+    return true;
   } catch(e) {
     console.error('[Fish Audio] Error:', e);
     showBubble('语音网络错误：' + e.message);

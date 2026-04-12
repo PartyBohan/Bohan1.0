@@ -1001,33 +1001,45 @@ function detectEmotion(text) {
   return 'neutral';
 }
 
+let _stateTimer = null;
 function setState(state) {
+  clearTimeout(_stateTimer);
   statusDot.className = '';
   speakGlow.classList.remove('active');
   stopWaveAnim();
   voiceBtn.classList.remove('disabled', 'recording');
   sendBtn.classList.remove('disabled');
 
+  const labels = {
+    listening: currentLang === 'en' ? 'Listening...' : '正在听...',
+    thinking:  currentLang === 'en' ? 'Thinking...'  : '思考中...',
+    speaking:  currentLang === 'en' ? 'Speaking...'  : '正在说...',
+    idle:      currentLang === 'en' ? 'Tap to speak' : '点击说话'
+  };
+
   switch(state) {
     case 'listening':
       voiceBtn.classList.add('recording');
-      voiceHint.textContent = '正在听...';
+      voiceHint.textContent = labels.listening;
       break;
     case 'thinking':
       statusDot.className = 'thinking';
-      voiceHint.textContent = '思考中...';
+      voiceHint.textContent = labels.thinking;
       voiceBtn.classList.add('disabled');
       sendBtn.classList.add('disabled');
+      // Safety: auto-reset after 30s if stuck in thinking
+      _stateTimer = setTimeout(() => setState('idle'), 30000);
       break;
     case 'speaking':
       statusDot.className = 'speaking';
       speakGlow.classList.add('active');
       startWaveAnim();
-      voiceHint.textContent = '正在说...';
+      voiceHint.textContent = labels.speaking;
+      // Safety: auto-reset after 120s if stuck in speaking
+      _stateTimer = setTimeout(() => { stopCurrentAudio(); setState('idle'); }, 120000);
       break;
     default:
-      voiceHint.textContent = '点击说话';
-      // Tell 3D to stop speaking
+      voiceHint.textContent = labels.idle;
       if (window.avatar3D) window.avatar3D.stopSpeaking();
   }
 }
@@ -1122,8 +1134,8 @@ function cancelVoice() {
   cancelBtn.classList.remove('show');
   if (mediaRecorder?.state === 'recording') mediaRecorder.stop();
   setState('idle');
-  voiceHint.textContent = '已取消';
-  setTimeout(() => { voiceHint.textContent = '点击说话'; }, 1500);
+  voiceHint.textContent = currentLang === 'en' ? 'Cancelled' : '已取消';
+  setTimeout(() => setState('idle'), 1500);
 }
 
 async function startVoiceRecording() {
@@ -1199,7 +1211,7 @@ async function transcribeAndSend(blob) {
 }
 
 // ===== Text =====
-function sendText() { const t = textInput.value.trim(); if (!t) return; textInput.value = ''; sendMessage(t); }
+function sendText() { const txt = textInput.value.trim(); if (!txt) return; textInput.value = ''; sendMessage(txt); }
 
 // ===== Main Flow =====
 async function sendMessage(text) {
@@ -1485,9 +1497,14 @@ async function fetchTTSChunk(text) {
 // Play one audio buffer, returns promise that resolves when done
 function playAudioBuffer(arrayBuffer, isCartoon) {
   return new Promise(async (resolve) => {
+    // Safety timeout: resolve after 30s max per chunk
+    const timer = setTimeout(() => { resolve(); }, 30000);
     try {
       const ctx = getAudioCtx();
-      const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+      // Resume if suspended (mobile browsers require user gesture)
+      if (ctx.state === 'suspended') await ctx.resume();
+
+      const audioBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
       const source = ctx.createBufferSource();
       source.buffer = audioBuffer;
       source.playbackRate.value = isCartoon ? 1.45 : 1.05;
@@ -1501,9 +1518,9 @@ function playAudioBuffer(arrayBuffer, isCartoon) {
       currentAudioSource = source;
       if (window.avatar3D) window.avatar3D.startSpeaking(analyser);
 
-      source.onended = () => { resolve(); };
+      source.onended = () => { clearTimeout(timer); resolve(); };
       source.start(0);
-    } catch(e) { resolve(); }
+    } catch(e) { clearTimeout(timer); resolve(); }
   });
 }
 

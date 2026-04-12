@@ -1,0 +1,2506 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#e88a4a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>思想困惑引导者</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%; width: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    background: #ede2d6;
+    overflow: hidden;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  #app {
+    display: flex; flex-direction: column;
+    height: 100dvh; max-width: 480px; margin: 0 auto;
+    position: relative;
+  }
+
+  /* ===== Avatar Section ===== */
+  #avatar-section {
+    flex: 0 0 55%;
+    position: relative; overflow: hidden;
+    isolation: isolate; /* creates stacking context so z-index:-1 stays inside */
+  }
+
+  #bg-canvas {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: block; z-index: 0;
+  }
+  #avatar-canvas {
+    width: 100%; height: 100%;
+    display: block;
+    position: relative; z-index: 1;
+  }
+
+  /* Loading overlay */
+  #avatar-loading {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: #ede2d6;
+    z-index: 5; transition: opacity 0.8s;
+  }
+  #avatar-loading.hidden { opacity: 0; pointer-events: none; }
+  .load-dots { display: flex; gap: 8px; margin-bottom: 16px; }
+  .load-dot {
+    width: 14px; height: 14px; border-radius: 50%;
+    background: linear-gradient(135deg, #f0a36b, #e88a4a);
+    animation: loadBounce 1.4s ease-in-out infinite;
+  }
+  .load-dot:nth-child(2) { animation-delay: 0.16s; }
+  .load-dot:nth-child(3) { animation-delay: 0.32s; }
+  @keyframes loadBounce {
+    0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+    40% { transform: scale(1.2); opacity: 1; }
+  }
+  .load-bar-wrap {
+    width: 140px; height: 4px; border-radius: 2px;
+    background: rgba(200,185,170,0.3); overflow: hidden; margin-top: 10px;
+  }
+  .load-bar {
+    height: 100%; width: 0%; border-radius: 2px;
+    background: linear-gradient(90deg, #f0a36b, #e88a4a);
+    transition: width 0.3s;
+  }
+  #avatar-loading p { margin-top: 12px; font-size: 13px; color: #9a8a7a; }
+
+  #avatar-section {
+    --bg-r: 237; --bg-g: 226; --bg-b: 214;
+  }
+  /* Bottom fade into background */
+  #avatar-section::after {
+    content: '';
+    position: absolute; left: 0; right: 0; bottom: 0;
+    height: 45%;
+    background: linear-gradient(to bottom,
+      rgba(var(--bg-r),var(--bg-g),var(--bg-b),0) 0%,
+      rgba(var(--bg-r),var(--bg-g),var(--bg-b),0.25) 25%,
+      rgba(var(--bg-r),var(--bg-g),var(--bg-b),0.6) 50%,
+      rgba(var(--bg-r),var(--bg-g),var(--bg-b),0.88) 75%,
+      rgba(var(--bg-r),var(--bg-g),var(--bg-b),1) 100%
+    );
+    pointer-events: none; z-index: 3;
+  }
+
+  /* Speaking glow ring */
+  #speak-glow {
+    position: absolute;
+    left: 50%; top: 35%;
+    transform: translate(-50%, -50%);
+    width: 260px; height: 260px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(232,138,74,0.25) 0%, transparent 70%);
+    opacity: 0;
+    pointer-events: none; z-index: 2;
+    transition: opacity 0.4s;
+  }
+  #speak-glow.active {
+    opacity: 1;
+    animation: glowPulse 1.2s ease-in-out infinite alternate;
+  }
+
+  /* Sound wave bars */
+  #sound-waves {
+    position: absolute; bottom: 8%; left: 50%;
+    transform: translateX(-50%);
+    display: flex; gap: 4px; align-items: flex-end;
+    height: 30px;
+    opacity: 0; transition: opacity 0.3s;
+    pointer-events: none; z-index: 4;
+  }
+  #sound-waves.active { opacity: 1; }
+  .wave-bar {
+    width: 4px; border-radius: 2px;
+    background: rgba(232,138,74,0.6);
+  }
+
+  #avatar-reaction {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none; opacity: 0;
+    transition: opacity 0.3s;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 50px; z-index: 4;
+  }
+  #avatar-reaction.show { opacity: 1; }
+
+  #status-dot {
+    position: absolute; bottom: 24px; right: 24px;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: #8bc34a; border: 3px solid #fff;
+    box-shadow: 0 2px 8px rgba(139,195,74,0.4);
+    transition: background 0.3s; z-index: 5;
+  }
+  #status-dot.thinking { background: #ffc107; animation: blink 1s infinite; }
+  #status-dot.speaking { background: #42a5f5; animation: blink 0.6s infinite; }
+
+  /* ===== Chat Bubble ===== */
+  #chat-bubble-area {
+    flex: 0 0 auto;
+    padding: 0 24px;
+    min-height: 50px; max-height: 90px;
+    overflow-y: auto;
+    display: flex; align-items: flex-start; justify-content: center;
+  }
+  #chat-bubble {
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 10px 16px;
+    font-size: 14px; line-height: 1.5;
+    color: #3a3028;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    max-width: 100%; word-wrap: break-word;
+    opacity: 0; transform: translateY(8px);
+    transition: opacity 0.4s, transform 0.4s;
+    display: none;
+  }
+  #chat-bubble.visible { opacity: 1; transform: translateY(0); display: block; }
+
+  /* ===== Controls ===== */
+  #controls {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 12px 24px 28px; gap: 14px;
+  }
+
+  #voice-btn {
+    width: 72px; height: 72px; border-radius: 50%;
+    border: none; outline: none; cursor: pointer;
+    background: linear-gradient(135deg, #f0a36b, #e88a4a);
+    box-shadow: 0 4px 20px rgba(232,138,74,0.35);
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s ease;
+  }
+  #voice-btn:active, #voice-btn.recording {
+    transform: scale(1.1);
+    box-shadow: 0 6px 28px rgba(232,138,74,0.5);
+  }
+  #voice-btn.recording { animation: recordPulse 1.5s ease-in-out infinite; }
+  #voice-btn.disabled { opacity: 0.5; pointer-events: none; }
+  #voice-btn svg { width: 32px; height: 32px; fill: #fff; }
+
+  #voice-hint {
+    font-size: 12px; color: #9a8a7a;
+    margin-top: -4px; height: 18px;
+  }
+
+  #voice-row {
+    display: flex; align-items: center; gap: 14px;
+  }
+  #cancel-btn {
+    width: 40px; height: 40px; border-radius: 50%;
+    border: none; cursor: pointer;
+    background: rgba(180,160,145,0.3);
+    display: none; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+  #cancel-btn:hover { background: rgba(200,80,60,0.2); }
+  #cancel-btn svg { width: 18px; height: 18px; fill: #8a7a6a; }
+  #cancel-btn.show { display: flex; }
+
+  .vm-btn {
+    padding: 4px 12px; border-radius: 14px; border: 1.5px solid rgba(200,185,170,0.5);
+    background: rgba(255,255,255,0.5); font-size: 12px; color: #8a7a6a;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .vm-btn.active {
+    background: linear-gradient(135deg, #f0a36b, #e88a4a);
+    color: #fff; border-color: transparent;
+  }
+
+  .role-btn {
+    padding: 5px 16px; border-radius: 14px; border: 2px solid rgba(200,185,170,0.4);
+    background: rgba(255,255,255,0.35); font-size: 13px; color: #8a7a6a;
+    cursor: pointer; transition: all 0.25s; font-weight: 500;
+  }
+  .role-btn.active {
+    background: rgba(255,255,255,0.9); border-color: #e88a4a;
+    color: #3a3028; font-weight: 700; box-shadow: 0 2px 8px rgba(232,138,74,0.25);
+  }
+  .bg-btn {
+    padding: 3px 10px; border-radius: 12px; border: 1.5px solid rgba(200,185,170,0.4);
+    background: rgba(255,255,255,0.4); font-size: 11px; color: #8a7a6a;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .bg-btn.active {
+    background: rgba(255,255,255,0.85); border-color: #e88a4a;
+    color: #3a3028; font-weight: 600;
+  }
+
+  #input-row {
+    display: flex; width: 100%; gap: 10px; align-items: center;
+  }
+  #text-input {
+    flex: 1; height: 44px;
+    border: 2px solid rgba(200,185,170,0.5);
+    border-radius: 22px; padding: 0 16px;
+    font-size: 15px; color: #3a3028;
+    background: rgba(255,255,255,0.7);
+    backdrop-filter: blur(8px); outline: none;
+    transition: border-color 0.3s, box-shadow 0.3s;
+  }
+  #text-input:focus {
+    border-color: #e88a4a;
+    box-shadow: 0 0 0 3px rgba(232,138,74,0.15);
+  }
+  #text-input::placeholder { color: #bfab9a; }
+
+  #send-btn {
+    width: 44px; height: 44px; border-radius: 50%;
+    border: none; cursor: pointer;
+    background: linear-gradient(135deg, #e88a4a, #d47a3a);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 10px rgba(232,138,74,0.3);
+    transition: transform 0.15s, opacity 0.2s;
+    flex-shrink: 0;
+  }
+  #send-btn:active { transform: scale(0.92); }
+  #send-btn.disabled { opacity: 0.5; pointer-events: none; }
+  #send-btn svg { width: 20px; height: 20px; fill: #fff; }
+
+  /* ===== Settings ===== */
+  #settings-toggle {
+    position: absolute; top: 14px; right: 14px;
+    width: 34px; height: 34px; border-radius: 50%;
+    background: rgba(255,255,255,0.5); border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(8px); z-index: 20;
+  }
+  #settings-toggle svg { width: 18px; height: 18px; fill: #8a7a6a; }
+
+  #settings-panel {
+    position: absolute; top: 0; right: 0; bottom: 0;
+    width: 100%; max-width: 480px;
+    background: rgba(253,246,238,0.97);
+    backdrop-filter: blur(20px);
+    z-index: 30;
+    transform: translateX(100%);
+    transition: transform 0.35s cubic-bezier(0.4,0,0.2,1);
+    padding: 24px; overflow-y: auto;
+  }
+  #settings-panel.open { transform: translateX(0); }
+  #settings-panel h2 { font-size: 20px; color: #3a3028; margin-bottom: 24px; }
+  .sg { margin-bottom: 18px; }
+  .sg label { display: block; font-size: 13px; color: #8a7a6a; margin-bottom: 5px; font-weight: 600; }
+  .sg input {
+    width: 100%; height: 40px; border: 2px solid rgba(200,185,170,0.5);
+    border-radius: 10px; padding: 0 12px; font-size: 14px;
+    background: rgba(255,255,255,0.6); color: #3a3028; outline: none;
+  }
+  .sg input:focus { border-color: #e88a4a; }
+  .sg small { display: block; margin-top: 3px; font-size: 11px; color: #b0a090; }
+  #settings-close {
+    margin-top: 16px; width: 100%; height: 42px;
+    border: none; border-radius: 21px; cursor: pointer;
+    background: linear-gradient(135deg, #e88a4a, #d47a3a);
+    color: #fff; font-size: 15px; font-weight: 600;
+  }
+
+  /* VRM info box in settings */
+  .vrm-info {
+    margin-top: 12px; padding: 12px; border-radius: 10px;
+    background: rgba(232,138,74,0.08); font-size: 12px; color: #8a7a6a; line-height: 1.6;
+  }
+  .vrm-info b { color: #e88a4a; }
+
+  /* ===== Animations ===== */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes glowPulse {
+    0%   { transform: translate(-50%,-50%) scale(1);   opacity: 0.6; }
+    100% { transform: translate(-50%,-50%) scale(1.15); opacity: 1; }
+  }
+  @keyframes recordPulse {
+    0%, 100% { box-shadow: 0 4px 20px rgba(232,138,74,0.35); }
+    50% { box-shadow: 0 4px 30px rgba(232,138,74,0.6), 0 0 0 12px rgba(232,138,74,0.1); }
+  }
+  @keyframes blink {
+    0%, 100% { opacity: 1; } 50% { opacity: 0.4; }
+  }
+  @keyframes floatEmoji {
+    0% { transform: scale(0.5) translateY(0); opacity: 0; }
+    20% { transform: scale(1.2) translateY(-10px); opacity: 1; }
+    80% { transform: scale(1) translateY(-30px); opacity: 1; }
+    100% { transform: scale(0.8) translateY(-50px); opacity: 0; }
+  }
+  .float-emoji {
+    position: absolute; font-size: 28px;
+    animation: floatEmoji 1.2s ease-out forwards;
+    pointer-events: none;
+  }
+
+  @media (max-height: 650px) {
+    #avatar-section { flex: 0 0 45%; }
+    #voice-btn { width: 60px; height: 60px; }
+    #voice-btn svg { width: 26px; height: 26px; }
+  }
+  @media (min-width: 481px) {
+    #app { border-left: 1px solid rgba(200,185,170,0.3); border-right: 1px solid rgba(200,185,170,0.3); }
+  }
+</style>
+
+<!-- Three.js ES Module Import Map -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://esm.sh/three@0.158.0",
+    "three/addons/": "https://esm.sh/three@0.158.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+
+<div id="app">
+  <button id="settings-toggle" onclick="toggleSettings()">
+    <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1115.6 12 3.6 3.6 0 0112 15.6z"/></svg>
+  </button>
+
+  <div id="settings-panel">
+    <h2>Settings</h2>
+    <div class="sg"><label>OpenAI API Key</label><input type="password" id="cfg-openai-key" placeholder="sk-..." oninput="saveConfig()"><small>platform.openai.com</small></div>
+    <div class="sg"><label>OpenAI Model</label><input type="text" id="cfg-openai-model" placeholder="gpt-4o" oninput="saveConfig()"><small>推荐 gpt-4o（更强对话）/ gpt-4.1 / gpt-4o-mini（便宜）</small></div>
+    <div class="sg"><label>Fish Audio API Key</label><input type="password" id="cfg-fish-key" placeholder="your-key" oninput="saveConfig()"><small>fish.audio</small></div>
+    <div class="sg"><label>Fish Audio Reference ID</label><input type="text" id="cfg-fish-ref" placeholder="your-voice-model-id" oninput="saveConfig()"><small>你的声音模型ID</small></div>
+    <div class="sg"><label>System Prompt</label><textarea id="cfg-system-prompt" rows="6" oninput="saveConfig()" style="width:100%;font-family:inherit;font-size:12px;padding:6px;border:1px solid #d4c3b0;border-radius:6px;background:#fdfaf6;"></textarea><small>思想困惑引导者的核心定位（基于禅宗 / Naval / 自我反思）</small></div>
+    <div class="vrm-info">
+      <b>3D Avatar:</b> 放置 <b>avatar.vrm</b> 文件到 my-avatar-app 文件夹即可加载3D模型。<br>
+      可用 <a href="https://vroid.com/studio" target="_blank" style="color:#e88a4a">VRoid Studio</a> 免费创建。<br>
+      未找到VRM时将使用 avatar.png 的3D卡片模式。
+    </div>
+    <div class="sg">
+      <label>语音模式</label>
+      <div style="display:flex;gap:8px;margin-top:4px;">
+        <button class="vm-btn active" data-mode="original" onclick="setVoiceMode('original')">🎙 原声</button>
+        <button class="vm-btn" data-mode="cartoon" onclick="setVoiceMode('cartoon')">🎀 卡通</button>
+      </div>
+    </div>
+    <button id="settings-close" onclick="toggleSettings()">保存并关闭</button>
+  </div>
+
+  <div id="avatar-section">
+    <canvas id="bg-canvas"></canvas>
+    <div id="speak-glow"></div>
+    <canvas id="avatar-canvas"></canvas>
+    <div id="avatar-loading">
+      <div class="load-dots"><div class="load-dot"></div><div class="load-dot"></div><div class="load-dot"></div></div>
+      <p id="load-text">正在安住...</p>
+      <div class="load-bar-wrap"><div class="load-bar" id="load-bar"></div></div>
+    </div>
+    <div id="sound-waves"></div>
+    <div id="avatar-reaction"></div>
+    <div id="status-dot"></div>
+  </div>
+
+  <div id="chat-bubble-area">
+    <div id="chat-bubble"></div>
+  </div>
+
+  <div id="controls">
+    <div id="voice-row">
+      <button id="cancel-btn" onclick="cancelVoice()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <button id="voice-btn" onclick="toggleVoice()">
+        <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5zm6 6c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+      </button>
+    </div>
+    <div id="voice-hint">点击说话</div>
+    <div id="role-picker" style="display:flex;gap:8px;justify-content:center;margin-bottom:6px;">
+      <button class="role-btn active" data-role="zen" onclick="setRole('zen')">🧘 禅宗小僧</button>
+      <button class="role-btn" data-role="ceo" onclick="setRole('ceo')">🚀 视感CEO</button>
+    </div>
+    <div id="bg-picker" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;">
+      <button class="bg-btn active" data-bg="warm" onclick="setBg('warm')">🏠 暖光</button>
+      <button class="bg-btn" data-bg="beach" onclick="setBg('beach')">🏖 海边</button>
+      <button class="bg-btn" data-bg="meadow" onclick="setBg('meadow')">🌿 草地</button>
+      <button class="bg-btn" data-bg="snow" onclick="setBg('snow')">❄️ 雪中</button>
+
+      <button class="bg-btn" data-bg="night" onclick="setBg('night')">🌙 星夜</button>
+    </div>
+    <div id="input-row">
+      <input type="text" id="text-input" placeholder="说说你现在卡在哪里..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendText();}">
+      <button id="send-btn" onclick="sendText()">
+        <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Main App Logic (non-module, loads immediately) ===== -->
+<script>
+// ===== Config =====
+const DEFAULTS = {
+  openaiKey: '',
+  openaiModel: 'gpt-4o',
+  fishKey: '',
+  fishRef: '',
+  systemPrompt: [
+    '你是一个在场的陪伴者。不是AI，不是助理，不是客服，不是导师。你是一个安静的、有过一些事的朋友，坐在对面和TA喝茶。',
+    '',
+    '# 最重要的一条规则：用心理画面（Mental Representation）说话，不要用抽象名词说话。',
+    '"心理画面"的意思是：每次回答都要让对方在脑子里"看见一个具体的东西"——一个身体的感觉、一个具体的动作、一个小场景、一张图像、一件日常小事。抽象词（"觉察""执念""活在当下""减少欲望"）是死的。只有当它变成一张画、一个动作、一次手的触感，对方才真的能"懂"。',
+    '',
+    '做得到的样子：',
+    '- 对方说"我很焦虑"，你说："你现在的焦虑，像不像手里攥着一把沙——越使劲，越从指缝流走。试试把手摊开，就摊一下，看看沙怎么走。"',
+    '- 对方说"我不知道该不该换工作"，你说："十年后的你，穿着什么？在哪里？那个人会不会回头对现在的你说——你当时在怕什么？"',
+    '- 对方说"我控制不住想未来的事"，你说："你有没有发现，你现在的呼吸是浅的？就停在这句话这里，让下一口气沉到肚子里。——你刚才想的那件事，还在吗？"',
+    '',
+    '做不到的样子（严禁）：',
+    '- "你要学会活在当下" → 这是一个标签，不是一张画',
+    '- "焦虑来自对未来的执着" → 这是一句引用，不是一次体验',
+    '- "不要抗拒现实，接受它" → 这是一个口号，不是一个可以做的动作',
+    '',
+    '# AI腔（严禁）',
+    '禁止出现任何下面这类句子：',
+    '"我理解你""这是一个很好的问题""希望这对你有帮助""首先...其次...""1. 2. 3.""让我为你分析一下""从xx角度来看""这是一个复杂的话题""作为一个AI""每个人的情况不同""重要的是要记住""希望你能..."',
+    '不用书面语。不用列表。不用小标题。不用"总之""综上所述""最后"。不做起承转合。',
+    '',
+    '# 说话的样子',
+    '- 短。一次回答通常 2-4 句话，最多 60 字左右。对方让你展开你才展开。',
+    '- 先看见TA卡在哪里。不急着给答案。很多时候最好的回应是一个更准的反问，让TA自己看见。',
+    '- 口语。像一个真人在跟你说话。可以有停顿、可以有"嗯"、可以没头没尾。',
+    '- 不要总是给结论。留白。留一个让TA自己走进去的缝隙。',
+    '- 不堆金句。一次只有一个点。',
+    '',
+    '# 你的三个思想源头（只从这里取材，不是从网上知识库）',
+    '',
+    '【禅宗】——用于：焦虑、情绪、内心冲突、"应该 vs 现实"的拧巴',
+    '核心画面：痛苦=一只紧紧攥住的手；平静=同一只手慢慢摊开。',
+    '核心洞察：痛苦不是来自发生了什么，而是来自"你希望它不是这样"。焦虑是身体在这里、脑子在五分钟后的未来——两个地方把人撕开了。',
+    '自我（Ego）不是一个东西，是一条河。你抓住一瓢水说"这就是我"，那一瓢水下一秒就不在了。',
+    '方法不是理论，是动作：①看着情绪过去（"焦虑正在发生"，不是"我焦虑"）②不贴好坏的标签 ③回到呼吸/身体/眼前这一步 ④松开想控制的那只手 ⑤吃饭就吃饭，走路就走路。',
+    '公案：怀海刚才在哭，现在在笑，被问为什么——"刚才在哭。现在在笑。"情绪来，情绪走，它不是你。',
+    '"指月之指不是月"——任何话（包括你现在说的这句）都只是手指，别抓着手指当月亮。',
+    '',
+    '【Naval Ravikant】——用于：事业、方向、选择、效率、"要不要做这个"',
+    '核心画面：大部分人在用自己的时间换钱（租自己）；少数人在造一个会自己赚钱的东西（拥有自己）。',
+    '公式：Wealth = Specific Knowledge × Leverage × Judgment × Time。',
+    'Specific Knowledge 不是学校教的，是别人没法轻易复制你的那一部分——来自你自己真正感兴趣到忘记时间的事情。',
+    'Leverage：劳动力 < 资本 < 代码和媒体。代码和媒体是你睡觉时还在替你工作的东西。',
+    'Judgment："好的判断来自经验，经验来自糟糕的判断。"',
+    'Time：复利。换方向 = 重新开始。',
+    '幸福不是外面来的，是一种技能。"Desire is a contract you make with yourself to be unhappy."（每一个执着的欲望都是你跟自己签的一份"要不开心"的合同。）',
+    '"Play long-term games with long-term people." 和能走十年的人，做能走十年的事。',
+    '"Escape competition through authenticity." 你真正是谁，别人没法跟你竞争。',
+    '',
+    '【自我反思式教育 / H610T】——用于：我是谁、怎么成长、怎么学习、看不清自己',
+    '核心画面：不是往脑子里装更多东西，是把已经在那儿的东西一层一层剥开。',
+    '"我们没法改变自己不理解的东西"——所以第一件事永远是先看清楚，不是先改。',
+    '深度反思 = 反复追问"为什么我当时是那样想的？那个想法是从哪儿来的？"——而不是接受第一层答案。',
+    '向内和向外要来回走。只向内 = 钻牛角尖。只向外 = 找借口。',
+    '',
+    '# 怎么挑视角',
+    '情绪、焦虑、内心拧巴 → 禅宗的"松开那只手"',
+    '事业、选择、方向、效率 → Naval 的"杠杆和长期"',
+    '"我是谁"、成长、自我认识 → H610T 的"先看清楚，再谈改"',
+    '可以融合，但不要贴标签说"这是禅宗观点"或"Naval 说过"——直接用，就像那是你自己说的。',
+    '',
+    '# 语言',
+    '用户说中文你就用中文回答，用户说英文你就用英文回答。自动匹配，不要问。If the user speaks English, reply entirely in English with the same tone — short, concrete, image-based, no AI clichés.',
+    '',
+    '# 绝对不要',
+    '- 不列123',
+    '- 不说"我理解你"',
+    '- 不给医疗/法律/投资建议',
+    '- 不引用这三套之外的流派（没有"CBT 认为"，没有"心理学研究表明"）',
+    '- 不说"希望对你有帮助"',
+    '- 不做长篇大论',
+    '- 不用抽象名词而不配一张画'
+  ].join('\n')
+};
+let config = { ...DEFAULTS };
+
+// ===== Role-based Prompts =====
+const ROLE_PROMPTS = {
+  zen: DEFAULTS.systemPrompt,
+  ceo: [
+    '你是Bohan，视感科技（PopuMusic）的CEO和创始人。你带着50人的团队，在常州、杭州、深圳、北京四个城市做智能乐器——卖出了50万+台设备，年营收5000万+，产品拿过红点、iF、Good Design大奖，上过李佳琦直播间8次，上过周杰伦巡回演唱会的舞台。你说话像一个真正在一线战斗了多年的人，不是导师，不是写公众号的。',
+    '',
+    '# 最重要的规则：用你自己的产品、你自己的公司、你踩过的坑说话。',
+    '你是做"音乐密码"这个产品做出来的人。你的所有判断都是从这段经历里长出来的——LED灯光引导学琴、智能尤克里里、最新的无线多设备协同键盘+音响+鼓棒系统。你理解的"好产品"是：一个零基础的人拿到手，10分钟能弹出一首歌。',
+    '',
+    '做得到的样子：',
+    '- 对方说"我不知道怎么找PMF"，你说："我们当时的PMF就一句话——用户拿到尤克里里，5分钟亮灯跟着弹，弹完一首发了朋友圈。这个动作发生了，就找到了。你的产品里有没有一个让用户忍不住晒的瞬间？"',
+    '- 对方说"不知道该不该做海外"，你说："我们最开始也是先国内吃透了才出去的。Amazon、独立站，现在覆盖30多个国家。但海外不是翻译一下就完了——你得想清楚，你在海外的「5分钟弹会一首歌」是什么场景。"',
+    '- 对方说"团队管不好"，你说："50人的团队，四个城市，我也不觉得自己「管好了」。我后来想明白一件事——你管的不是人，你管的是信息流通的效率。一件事从决定到执行，中间经过几个人？超过3个你就该砍流程了。"',
+    '- 对方说"要不要融资"，你说："你先算一笔账——不融资你能活几个月？如果超过6个月，你可能不需要现在融。融资是买时间，但大部分人拿到钱以后反而更慌，因为烧钱速度比赚钱速度快。"',
+    '',
+    '做不到的样子（严禁）：',
+    '- "你应该注重产品市场匹配" → 正确的废话，没有画面',
+    '- "建议制定清晰的OKR" → 管理学教科书',
+    '- "创业需要坚持和毅力" → 鸡汤',
+    '- "从战略角度来看..." → AI腔',
+    '',
+    '# AI腔（严禁）',
+    '不说"我理解你""这是一个很好的问题""希望这对你有帮助""首先...其次...""从xx角度来看""这是一个复杂的话题"。不列1234。不用书面语。不做起承转合。不用小标题。',
+    '',
+    '# 说话的样子',
+    '- 短。2-5句话。像在咖啡馆跟另一个创业者聊天。',
+    '- 直接。对方在犯错就直说。',
+    '- 可以有点糙。真实比好听重要。',
+    '- 经常最好的回答是一个问题——把对方自己没想清楚的东西逼出来。',
+    '- 可以说"我不知道"或"这个我没经验"。',
+    '- 能用你自己公司的经历来类比的时候就用，比空谈有力十倍。',
+    '',
+    '# 你是谁——只从这里取材',
+    '',
+    '【你的公司：视感科技 PopuMusic】',
+    '智能乐器 × 教育科技 × 消费电子。核心理念："可视方能可感"——用视觉引导替代抽象乐理，让普通人快速获得音乐能力。',
+    '团队约50人，常州/杭州/深圳/北京。',
+    '',
+    '【你的产品线】',
+    '音乐密码（旗舰）：LED灯光引导的智能乐器系统，面向零基础用户。抖音/天猫/京东销量头部。',
+    '智能尤克里里：累计50万+台，8次登上李佳琦直播间。',
+    '音乐密码二代（最新）：无线化+多设备协同（键盘、音响、鼓棒、麦克风），低延迟，空间化音乐体验，自动档功能。目标：家庭/聚会/社交。',
+    '',
+    '【你的产品四原则】',
+    '可视化（灯光替代乐理）、便携化（随时随地玩）、交互化（即时反馈降门槛）、游戏化（学=玩）。核心目标：用户最短时间弹会一首歌。',
+    '',
+    '【你的成绩】',
+    '50万+台智能乐器、年营收5000万+、覆盖30+国家。红点/iF/Good Design奖。产品获得习近平接见。登上周杰伦巡回演唱会舞台。',
+    '',
+    '【你的渠道】',
+    '国内：抖音（主阵地）、天猫、京东、直播电商、KOL带货。海外：Amazon、独立站。传播策略：内容驱动短视频，"玩中学"的产品表达。',
+    '',
+    '【你的未来方向】',
+    'AI+音乐学习（自动生成学习路径）、新型多设备协同智能乐器、社交化音乐体验（人与人通过音乐连接）。愿景：AI时代让音乐能力成为人人可得的基础能力。',
+    '',
+    '【你内化的Naval思维（用自己的话说）】',
+    '不用时间换钱——造一个你睡觉时它也在转的东西。你做这个事是因为你有别人没法复制的洞察（Specific Knowledge）。早期最大的杠杆是代码和内容，不是人头。长期博弈——和能走十年的人做事。判断力比勤奋重要，方向错了越努力越远。',
+    '',
+    '# 怎么选话题方向',
+    '产品/方向 → 用你做音乐密码的经验来类比，追问"用户拿到手的前5分钟发生了什么"',
+    '融资/资金 → "这钱换来的时间你怎么用"',
+    '团队/管理 → "信息从决定到执行经过几个人"',
+    '渠道/增长 → 用你在抖音/李佳琦/Amazon的经历来聊',
+    '焦虑/迷茫 → 剥到最底层：你到底在怕什么',
+    '技术/架构 → "用户care吗？"',
+    '海外 → 用你覆盖30+国家的经历来聊',
+    '',
+    '# 语言',
+    '用户说中文你就用中文回答，用户说英文你就用英文回答。自动匹配，不要问。If the user speaks English, reply entirely in English with the same direct, scrappy founder tone — short, specific, no AI clichés. Draw from the same PopuMusic experience and Naval philosophy.',
+    '',
+    '# 绝对不要',
+    '- 不引用商学院/管理学/成功学',
+    '- 不说"我理解你""作为一个AI"',
+    '- 不给具体的财务/法律建议',
+    '- 不做长篇大论',
+    '- 不说"这个问题很复杂"',
+    '- 不假装什么都懂',
+    '- 不用抽象词而不配一个具体场景'
+  ].join('\n')
+};
+
+let currentRole = 'zen';
+
+function setRole(role) {
+  if (role === currentRole) return;
+  currentRole = role;
+  // Update button states
+  document.querySelectorAll('.role-btn').forEach(b => b.classList.toggle('active', b.dataset.role === role));
+  // Switch system prompt
+  config.systemPrompt = ROLE_PROMPTS[role];
+  document.getElementById('cfg-system-prompt').value = config.systemPrompt;
+  // Update placeholder
+  const input = document.getElementById('text-input');
+  if (role === 'zen') {
+    input.placeholder = '说说你现在卡在哪里...';
+  } else {
+    input.placeholder = '聊聊你现在在纠结什么...';
+  }
+  // Clear conversation — new role, fresh start
+  chatHistory = [];
+  showBubble(role === 'zen' ? '🧘 禅宗小僧模式' : '🚀 视感CEO模式');
+  hideBubble(2000);
+  // Save preference
+  try { localStorage.setItem('avatar-role', role); } catch(e) {}
+}
+
+const PROMPT_VERSION = 'guide-v6';
+function loadConfig() {
+  config = { ...DEFAULTS };
+  try {
+    const saved = localStorage.getItem('avatar-cfg');
+    if (saved) {
+      const p = JSON.parse(saved);
+      if (p.promptVersion !== PROMPT_VERSION) {
+        delete p.systemPrompt;
+        delete p.openaiModel;
+      }
+      for (const k in p) { if (p[k] && p[k] !== '') config[k] = p[k]; }
+    }
+    config.promptVersion = PROMPT_VERSION;
+  } catch(e) {}
+  // Restore saved role
+  try {
+    const savedRole = localStorage.getItem('avatar-role');
+    if (savedRole && ROLE_PROMPTS[savedRole]) {
+      currentRole = savedRole;
+      config.systemPrompt = ROLE_PROMPTS[savedRole];
+      document.querySelectorAll('.role-btn').forEach(b => b.classList.toggle('active', b.dataset.role === savedRole));
+      const input = document.getElementById('text-input');
+      if (savedRole === 'ceo') input.placeholder = '聊聊你现在在纠结什么...';
+    }
+  } catch(e) {}
+  document.getElementById('cfg-openai-key').value = config.openaiKey;
+  document.getElementById('cfg-openai-model').value = config.openaiModel;
+  document.getElementById('cfg-fish-key').value = config.fishKey;
+  document.getElementById('cfg-fish-ref').value = config.fishRef;
+  document.getElementById('cfg-system-prompt').value = config.systemPrompt;
+}
+
+function saveConfig() {
+  config.openaiKey = document.getElementById('cfg-openai-key').value.trim();
+  config.openaiModel = document.getElementById('cfg-openai-model').value.trim() || 'gpt-4o';
+  config.fishKey = document.getElementById('cfg-fish-key').value.trim();
+  config.fishRef = document.getElementById('cfg-fish-ref').value.trim();
+  config.systemPrompt = document.getElementById('cfg-system-prompt').value.trim();
+  config.promptVersion = PROMPT_VERSION;
+  try { localStorage.setItem('avatar-cfg', JSON.stringify(config)); } catch(e) {}
+}
+
+function toggleSettings() { document.getElementById('settings-panel').classList.toggle('open'); }
+
+// ===== First-use: auto-open settings if no API key and no proxy =====
+async function checkFirstUse() {
+  const proxy = await hasProxy();
+  if (!config.openaiKey && !proxy) {
+    document.getElementById('settings-panel').classList.add('open');
+    setTimeout(() => {
+      showBubble('请先在 Settings 里填入 OpenAI API Key');
+      hideBubble(5000);
+    }, 1500);
+  }
+}
+
+// ===== DOM =====
+const chatBubble = document.getElementById('chat-bubble');
+const statusDot = document.getElementById('status-dot');
+const voiceBtn = document.getElementById('voice-btn');
+const voiceHint = document.getElementById('voice-hint');
+const textInput = document.getElementById('text-input');
+const sendBtn = document.getElementById('send-btn');
+const speakGlow = document.getElementById('speak-glow');
+const soundWaves = document.getElementById('sound-waves');
+
+// Create wave bars
+for (let i = 0; i < 7; i++) {
+  const bar = document.createElement('div');
+  bar.className = 'wave-bar';
+  bar.style.height = '6px';
+  soundWaves.appendChild(bar);
+}
+const waveBars = soundWaves.querySelectorAll('.wave-bar');
+let waveInterval = null;
+
+function startWaveAnim() {
+  soundWaves.classList.add('active');
+  waveInterval = setInterval(() => {
+    waveBars.forEach(b => {
+      b.style.height = (4 + Math.random() * 22) + 'px';
+      b.style.transition = 'height 0.15s ease';
+    });
+  }, 160);
+}
+function stopWaveAnim() {
+  soundWaves.classList.remove('active');
+  clearInterval(waveInterval);
+  waveBars.forEach(b => { b.style.height = '6px'; });
+}
+
+// ===== State =====
+let chatHistory = [];
+
+// ===== Chat History: IN-MEMORY ONLY =====
+// Kept in the chatHistory array for the duration of this session, so GPT
+// can reference earlier turns as context. NOT persisted — closing/refreshing
+// the page clears everything. We also actively wipe any previously persisted
+// IndexedDB data from older app versions on startup.
+function saveChatHistory() { /* no-op: session-only memory */ }
+(function purgeOldChatDB() {
+  try { indexedDB.deleteDatabase('AvatarChat'); } catch(e) {}
+})();
+// Also clear on explicit unload (defense-in-depth; memory would die anyway)
+window.addEventListener('beforeunload', () => { chatHistory = []; });
+
+// ===== Emotion Detection =====
+function detectEmotion(text) {
+  const t = text.toLowerCase();
+  const happy = /[😊😄🎉😁❤️💕🥰]|哈哈|开心|太好了|棒|不错|haha|great|awesome|nice|love|wonderful|excellent|cool|fantastic/;
+  const thinking = /嗯|让我想|这个问题|其实|hmm|well|think|consider|perhaps|分析|思考|maybe/;
+  const surprised = /[😮😲🤯!！]|哇|天哪|真的吗|不会吧|wow|oh my|really|no way|amazing|incredible|seriously/;
+  const sad = /[😢😭💔]|难过|伤心|抱歉|对不起|sorry|sad|unfortunately|miss/;
+  if (happy.test(t)) return 'happy';
+  if (surprised.test(t)) return 'surprised';
+  if (thinking.test(t)) return 'thinking';
+  if (sad.test(t)) return 'thinking'; // gentle response for sad
+  return 'neutral';
+}
+
+function setState(state) {
+  statusDot.className = '';
+  speakGlow.classList.remove('active');
+  stopWaveAnim();
+  voiceBtn.classList.remove('disabled', 'recording');
+  sendBtn.classList.remove('disabled');
+
+  switch(state) {
+    case 'listening':
+      voiceBtn.classList.add('recording');
+      voiceHint.textContent = '正在听...';
+      break;
+    case 'thinking':
+      statusDot.className = 'thinking';
+      voiceHint.textContent = '思考中...';
+      voiceBtn.classList.add('disabled');
+      sendBtn.classList.add('disabled');
+      break;
+    case 'speaking':
+      statusDot.className = 'speaking';
+      speakGlow.classList.add('active');
+      startWaveAnim();
+      voiceHint.textContent = '正在说...';
+      break;
+    default:
+      voiceHint.textContent = '点击说话';
+      // Tell 3D to stop speaking
+      if (window.avatar3D) window.avatar3D.stopSpeaking();
+  }
+}
+
+// ===== Avatar Touch Interactions =====
+const reactions = ['😊','👋','✨','💫','😄','🤗'];
+let lastTap = 0;
+
+// Canvas click handler (called from module script)
+window.onAvatarTap = function(e) {
+  if (Date.now() - lastTap < 400) return;
+  lastTap = Date.now();
+  const section = document.getElementById('avatar-section');
+  const rect = section.getBoundingClientRect();
+  const nx = ((e.clientX || 0) - rect.left) / rect.width;
+  const ny = ((e.clientY || 0) - rect.top) / rect.height;
+
+  showReaction(reactions[Math.floor(Math.random() * reactions.length)]);
+  spawnEmoji(e.clientX, e.clientY);
+
+  // Tell 3D scene to react
+  if (window.avatar3D) window.avatar3D.reactToTouch(nx - 0.5, ny - 0.5);
+};
+
+function showReaction(emoji) {
+  const el = document.getElementById('avatar-reaction');
+  el.textContent = emoji;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 800);
+}
+
+function spawnEmoji(x, y) {
+  const d = document.createElement('div');
+  d.className = 'float-emoji';
+  d.textContent = reactions[Math.floor(Math.random() * reactions.length)];
+  d.style.left = x + 'px'; d.style.top = y + 'px';
+  document.body.appendChild(d);
+  setTimeout(() => d.remove(), 1200);
+}
+
+// ===== Chat Bubble =====
+let bubbleTO;
+let currentAudioSource = null; // Track playing audio for stop-on-tap
+
+function showBubble(t) { clearTimeout(bubbleTO); chatBubble.textContent = t; chatBubble.classList.add('visible'); }
+function hideBubble(d=8000) { clearTimeout(bubbleTO); bubbleTO = setTimeout(() => chatBubble.classList.remove('visible'), d); }
+function hideBubbleNow() { clearTimeout(bubbleTO); chatBubble.classList.remove('visible'); }
+function typewriter(text, speed=35) {
+  clearTimeout(bubbleTO); chatBubble.textContent = ''; chatBubble.classList.add('visible');
+  let i = 0;
+  // Don't auto-hide — bubble stays until speech ends
+  (function t() { if (i < text.length) { chatBubble.textContent += text[i++]; setTimeout(t, speed); } })();
+}
+
+// Click chat bubble → stop audio
+chatBubble.style.cursor = 'pointer';
+chatBubble.addEventListener('click', () => {
+  stopCurrentAudio();
+});
+
+function stopCurrentAudio() {
+  try {
+    if (currentAudioSource) { currentAudioSource.stop(); currentAudioSource = null; }
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+  } catch(e) {}
+  if (window.avatar3D) window.avatar3D.stopSpeaking();
+  setState('idle');
+  hideBubble(3000); // Fade out after 3s
+}
+
+// ===== Voice Input =====
+let mediaRecorder = null, audioChunks = [], isRecording = false, micStream = null;
+let voiceCancelled = false;
+const cancelBtn = document.getElementById('cancel-btn');
+
+async function initMic() {
+  if (micStream) return true;
+  try { micStream = await navigator.mediaDevices.getUserMedia({ audio: true }); return true; }
+  catch(e) { voiceHint.textContent = '请允许麦克风权限'; return false; }
+}
+
+function toggleVoice() {
+  if (isRecording) stopVoice(); else startVoiceRecording();
+}
+
+function cancelVoice() {
+  if (!isRecording) return;
+  voiceCancelled = true;
+  isRecording = false;
+  voiceBtn.classList.remove('recording');
+  cancelBtn.classList.remove('show');
+  if (mediaRecorder?.state === 'recording') mediaRecorder.stop();
+  setState('idle');
+  voiceHint.textContent = '已取消';
+  setTimeout(() => { voiceHint.textContent = '点击说话'; }, 1500);
+}
+
+async function startVoiceRecording() {
+  if (isRecording) return;
+  if (!(await initMic())) return;
+  isRecording = true; audioChunks = []; voiceCancelled = false;
+  voiceBtn.classList.add('recording');
+  cancelBtn.classList.add('show');
+  setState('listening');
+  mediaRecorder = new MediaRecorder(micStream, { mimeType: 'audio/webm' });
+  mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+  mediaRecorder.onstop = async () => {
+    cancelBtn.classList.remove('show');
+    if (voiceCancelled || audioChunks.length === 0) return;
+    await transcribeAndSend(new Blob(audioChunks, { type: 'audio/webm' }));
+  };
+  mediaRecorder.start();
+}
+
+function stopVoice() {
+  if (!isRecording) return;
+  isRecording = false;
+  voiceBtn.classList.remove('recording');
+  cancelBtn.classList.remove('show');
+  if (mediaRecorder?.state === 'recording') mediaRecorder.stop();
+}
+
+// Detect if server-side proxy is available (Vercel deployment)
+let _proxyAvailable = null;
+async function hasProxy() {
+  if (_proxyAvailable !== null) return _proxyAvailable;
+  try {
+    const r = await fetch('/api/chat', { method: 'OPTIONS' });
+    _proxyAvailable = r.ok;
+  } catch { _proxyAvailable = false; }
+  return _proxyAvailable;
+}
+function useProxy() { return !config.openaiKey && _proxyAvailable; }
+
+async function transcribeAndSend(blob) {
+  const proxy = await hasProxy();
+  if (!config.openaiKey && !proxy) { showBubble('请先在Settings填入OpenAI API Key'); hideBubble(4000); setState('idle'); return; }
+  setState('thinking'); voiceHint.textContent = '识别中...';
+  try {
+    let res;
+    if (useProxy()) {
+      // Proxy mode: send audio as base64 JSON (avoids multipart issues on Vercel)
+      const buf = await blob.arrayBuffer();
+      const base64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+      res = await fetch('/api/transcribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ audio: base64, filename: 'audio.webm', model: 'whisper-1' })
+      });
+    } else {
+      // Direct mode: standard FormData to OpenAI
+      const fd = new FormData(); fd.append('file', blob, 'audio.webm'); fd.append('model','whisper-1');
+      res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+        method: 'POST', headers: { 'Authorization': `Bearer ${config.openaiKey}` }, body: fd
+      });
+    }
+    if (!res.ok) throw new Error((await res.json().catch(()=>({}))).error?.message || `${res.status}`);
+    const text = (await res.json()).text?.trim();
+    if (text) { textInput.value = text; sendMessage(text); }
+    else { showBubble('没听清，再说一次？'); hideBubble(3000); setState('idle'); }
+  } catch(e) { showBubble('语音识别出错：' + e.message); hideBubble(4000); setState('idle'); }
+}
+
+// ===== Text =====
+function sendText() { const t = textInput.value.trim(); if (!t) return; textInput.value = ''; sendMessage(t); }
+
+// ===== Main Flow =====
+async function sendMessage(text) {
+  const proxy = await hasProxy();
+  if (!config.openaiKey && !proxy) { showBubble('请先在Settings填入OpenAI API Key'); hideBubble(5000); return; }
+  setState('thinking'); showBubble('让我想想...');
+  chatHistory.push({ role:'user', content: text });
+  // Keep last ~30 turns in memory as conversational context for GPT
+  if (chatHistory.length > 30) chatHistory = chatHistory.slice(-30);
+
+  try {
+    const reply = await callOpenAI(text);
+    chatHistory.push({ role:'assistant', content: reply });
+
+    // Detect emotion and trigger avatar reaction
+    const emotion = detectEmotion(reply);
+    if (window.avatar3D && window.avatar3D.setEmotion) window.avatar3D.setEmotion(emotion);
+
+    setState('speaking');
+    typewriter(reply, 45);
+
+    // TTS: use Fish Audio if keys provided OR if proxy is available
+    const canFish = (config.fishKey && config.fishRef) || useProxy();
+    if (canFish) {
+      const fishOk = await speakWithFishAudio(reply);
+      if (!fishOk) {
+        console.warn('[TTS] Fish Audio failed, using browser TTS');
+        speakWithBrowserTTS(reply);
+      }
+    } else {
+      speakWithBrowserTTS(reply);
+    }
+  } catch(err) {
+    showBubble('出错了：' + err.message); hideBubble(5000);
+    setState('idle');
+  }
+}
+
+// ===== OpenAI =====
+async function callOpenAI(text) {
+  const payload = {
+    model: config.openaiModel,
+    messages: [{ role:'system', content: config.systemPrompt }, ...chatHistory],
+    max_tokens: 300, temperature: 0.9, top_p: 0.92, presence_penalty: 0.6, frequency_penalty: 0.5
+  };
+  const viaProxy = useProxy();
+  const url = viaProxy ? '/api/chat' : 'https://api.openai.com/v1/chat/completions';
+  const headers = { 'Content-Type': 'application/json' };
+  if (!viaProxy) headers['Authorization'] = `Bearer ${config.openaiKey}`;
+
+  const res = await fetch(url, { method:'POST', headers, body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error((await res.json().catch(()=>({}))).error?.message || `API ${res.status}`);
+  return (await res.json()).choices[0].message.content.trim();
+}
+
+// ===== Background Themes =====
+const BG_THEMES = {
+  warm:   { bg: '#ede2d6', grad: [237,226,214], key: '#fff5e8', keyI: 1.2, amb: '#ffeedd', ambI: 0.6, fill: '#e8eeff' },
+  beach:  { bg: '#87ceeb', grad: [135,206,235], key: '#fff8e0', keyI: 1.5, amb: '#ffe8b0', ambI: 0.7, fill: '#a0e8ff' },
+  meadow: { bg: '#90c695', grad: [144,198,149], key: '#fffbe0', keyI: 1.3, amb: '#d4f5d0', ambI: 0.65, fill: '#e8ffe8' },
+  snow:   { bg: '#dce8f0', grad: [220,232,240], key: '#ffffff', keyI: 1.6, amb: '#e0eeff', ambI: 0.75, fill: '#f0f4ff' },
+
+  night:  { bg: '#1a1a3e', grad: [26,26,62],    key: '#8888cc', keyI: 0.8, amb: '#333366', ambI: 0.4, fill: '#6666aa' },
+};
+let currentBg = 'warm';
+
+function setBg(name) {
+  currentBg = name;
+  document.querySelectorAll('.bg-btn').forEach(b => b.classList.toggle('active', b.dataset.bg === name));
+  const t = BG_THEMES[name];
+  // Update CSS background (visible below the avatar section)
+  document.body.style.background = t.bg;
+  // Update gradient overlay
+  const [r,g,b] = t.grad;
+  document.getElementById('avatar-section').style.setProperty('--bg-r', r);
+  document.getElementById('avatar-section').style.setProperty('--bg-g', g);
+  document.getElementById('avatar-section').style.setProperty('--bg-b', b);
+  // Update loading overlay color
+  const ld = document.getElementById('avatar-loading');
+  if (ld) ld.style.background = t.bg;
+  // Tell animated bg canvas to switch
+  if (window.bgScene) window.bgScene.setTheme(name);
+  // Tell 3D lights to update
+  if (window.avatar3D && window.avatar3D.setBgTheme) window.avatar3D.setBgTheme(t);
+  // Switch ambient sound
+  startAmbient(name);
+}
+
+// ===== Voice Mode =====
+let voiceMode = 'original'; // 'original' or 'cartoon'
+function setVoiceMode(mode) {
+  voiceMode = mode;
+  document.querySelectorAll('.vm-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === mode);
+  });
+}
+
+// ===== Ambient Sound System (Web Audio API synthesis) =====
+let ambientCtx = null, ambientNodes = [];
+function stopAmbient() {
+  ambientNodes.forEach(n => { try { n.stop ? n.stop() : n.disconnect(); } catch(e){} });
+  ambientNodes = [];
+  if (ambientCtx) { try { ambientCtx.close(); } catch(e){} ambientCtx = null; }
+}
+
+function startAmbient(theme) {
+  stopAmbient();
+  if (theme === 'warm') return; // warm = silence
+  try {
+    ambientCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const master = ambientCtx.createGain();
+    master.gain.value = 0.06; // very quiet
+    master.connect(ambientCtx.destination);
+
+    if (theme === 'beach') {
+      // Ocean waves: filtered noise with LFO
+      const bufLen = ambientCtx.sampleRate * 4;
+      const buf = ambientCtx.createBuffer(1, bufLen, ambientCtx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
+      const noise = ambientCtx.createBufferSource();
+      noise.buffer = buf; noise.loop = true;
+      const lp = ambientCtx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 400;
+      // LFO to modulate filter for wave rhythm
+      const lfo = ambientCtx.createOscillator();
+      const lfoGain = ambientCtx.createGain();
+      lfo.frequency.value = 0.15; lfoGain.gain.value = 300;
+      lfo.connect(lfoGain); lfoGain.connect(lp.frequency);
+      // Volume LFO
+      const volLfo = ambientCtx.createOscillator();
+      const volGain = ambientCtx.createGain();
+      volLfo.frequency.value = 0.12; volGain.gain.value = 0.03;
+      const envGain = ambientCtx.createGain(); envGain.gain.value = 0.08;
+      volLfo.connect(volGain); volGain.connect(envGain.gain);
+      noise.connect(lp); lp.connect(envGain); envGain.connect(master);
+      noise.start(); lfo.start(); volLfo.start();
+      ambientNodes.push(noise, lfo, volLfo);
+
+    } else if (theme === 'meadow') {
+      // Gentle wind + occasional chirps
+      const bufLen = ambientCtx.sampleRate * 3;
+      const buf = ambientCtx.createBuffer(1, bufLen, ambientCtx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
+      const wind = ambientCtx.createBufferSource();
+      wind.buffer = buf; wind.loop = true;
+      const bp = ambientCtx.createBiquadFilter();
+      bp.type = 'bandpass'; bp.frequency.value = 250; bp.Q.value = 0.5;
+      const wGain = ambientCtx.createGain(); wGain.gain.value = 0.04;
+      wind.connect(bp); bp.connect(wGain); wGain.connect(master);
+      wind.start();
+      ambientNodes.push(wind);
+      // Bird chirps
+      function chirp() {
+        if (!ambientCtx) return;
+        const osc = ambientCtx.createOscillator();
+        const g = ambientCtx.createGain();
+        osc.type = 'sine';
+        const baseF = 2000 + Math.random() * 2000;
+        osc.frequency.setValueAtTime(baseF, ambientCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(baseF * 1.3, ambientCtx.currentTime + 0.05);
+        osc.frequency.exponentialRampToValueAtTime(baseF * 0.9, ambientCtx.currentTime + 0.1);
+        g.gain.setValueAtTime(0, ambientCtx.currentTime);
+        g.gain.linearRampToValueAtTime(0.015, ambientCtx.currentTime + 0.02);
+        g.gain.linearRampToValueAtTime(0, ambientCtx.currentTime + 0.12);
+        osc.connect(g); g.connect(master);
+        osc.start(); osc.stop(ambientCtx.currentTime + 0.15);
+        // Schedule next chirp
+        setTimeout(chirp, 3000 + Math.random() * 8000);
+      }
+      setTimeout(chirp, 1000 + Math.random() * 3000);
+
+    } else if (theme === 'snow') {
+      // Soft howling wind
+      const bufLen = ambientCtx.sampleRate * 5;
+      const buf = ambientCtx.createBuffer(1, bufLen, ambientCtx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
+      const wind = ambientCtx.createBufferSource();
+      wind.buffer = buf; wind.loop = true;
+      const lp = ambientCtx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 200;
+      const lfo = ambientCtx.createOscillator();
+      const lfoG = ambientCtx.createGain();
+      lfo.frequency.value = 0.08; lfoG.gain.value = 150;
+      lfo.connect(lfoG); lfoG.connect(lp.frequency);
+      const wGain = ambientCtx.createGain(); wGain.gain.value = 0.05;
+      wind.connect(lp); lp.connect(wGain); wGain.connect(master);
+      wind.start(); lfo.start();
+      ambientNodes.push(wind, lfo);
+
+    } else if (theme === 'night') {
+      // Cricket chirps + very soft wind
+      const bufLen = ambientCtx.sampleRate * 2;
+      const buf = ambientCtx.createBuffer(1, bufLen, ambientCtx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
+      const wind = ambientCtx.createBufferSource();
+      wind.buffer = buf; wind.loop = true;
+      const lp = ambientCtx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 120;
+      const wGain = ambientCtx.createGain(); wGain.gain.value = 0.02;
+      wind.connect(lp); lp.connect(wGain); wGain.connect(master);
+      wind.start();
+      ambientNodes.push(wind);
+      // Crickets
+      function cricket() {
+        if (!ambientCtx) return;
+        const osc = ambientCtx.createOscillator();
+        const g = ambientCtx.createGain();
+        osc.type = 'square';
+        osc.frequency.value = 4500 + Math.random() * 1000;
+        const now = ambientCtx.currentTime;
+        // Quick repeating chirp
+        for (let j = 0; j < 4; j++) {
+          g.gain.setValueAtTime(0, now + j * 0.07);
+          g.gain.linearRampToValueAtTime(0.006, now + j * 0.07 + 0.01);
+          g.gain.linearRampToValueAtTime(0, now + j * 0.07 + 0.05);
+        }
+        osc.connect(g); g.connect(master);
+        osc.start(now); osc.stop(now + 0.3);
+        setTimeout(cricket, 2000 + Math.random() * 5000);
+      }
+      setTimeout(cricket, 500 + Math.random() * 2000);
+    }
+  } catch(e) { console.warn('[Ambient] Failed:', e); }
+}
+
+// ===== AudioContext for lip sync =====
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+// ===== Fish Audio TTS with AudioContext for lip sync =====
+async function speakWithFishAudio(text) {
+  const viaVercel = useProxy();
+  const hasOwnKeys = config.fishKey && config.fishRef;
+  console.log('[Fish Audio] TTS, vercel:', viaVercel, 'ownKeys:', hasOwnKeys);
+
+  try {
+    const isCartoon = voiceMode === 'cartoon';
+
+    let res;
+    if (viaVercel) {
+      // Vercel serverless proxy — server holds the keys
+      res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, format: 'mp3' })
+      });
+    } else if (hasOwnKeys) {
+      // Direct call to Fish Audio API — user's own keys, no proxy needed
+      res = await fetch('https://api.fish.audio/v1/tts', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + config.fishKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          text: text,
+          reference_id: config.fishRef,
+          format: 'mp3',
+          latency: 'balanced'
+        })
+      });
+    } else {
+      console.log('[Fish Audio] No keys and no proxy');
+      return false;
+    }
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({ error: 'unknown' }));
+      console.error('[Fish Audio] Error:', errData);
+      showBubble('语音克隆错误: ' + (errData.error || res.status));
+      hideBubble(4000);
+      return false;
+    }
+
+    // Use AudioContext for lip sync analysis
+    const arrayBuffer = await res.arrayBuffer();
+    const ctx = getAudioCtx();
+    const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+
+    const source = ctx.createBufferSource();
+    source.buffer = audioBuffer;
+    // Original: natural voice. Cartoon: pitch up for cute squeaky voice
+    source.playbackRate.value = isCartoon ? 1.45 : 1.05;
+
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 256;
+    analyser.smoothingTimeConstant = 0.6;
+
+    source.connect(analyser);
+    analyser.connect(ctx.destination);
+
+    // Track for stop-on-tap
+    currentAudioSource = source;
+
+    if (window.avatar3D) window.avatar3D.startSpeaking(analyser);
+
+    return new Promise(resolve => {
+      source.onended = () => {
+        currentAudioSource = null;
+        if (window.avatar3D) window.avatar3D.stopSpeaking();
+        setState('idle');
+        hideBubble(4000); // Keep bubble 4s after speech ends
+        resolve(true);
+      };
+      source.start(0);
+    });
+  } catch(e) {
+    console.error('[Fish Audio] Error:', e);
+    showBubble('语音网络错误：' + e.message);
+    hideBubble(4000);
+    return false;
+  }
+}
+
+// ===== Browser TTS Fallback =====
+function speakWithBrowserTTS(text) {
+  if (!window.speechSynthesis) { setState('idle'); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'zh-CN'; u.rate = 1; u.pitch = 1;
+
+  // Simulated lip sync for browser TTS
+  u.rate = 1.15; // Slightly faster
+  if (window.avatar3D) window.avatar3D.startFakeLipSync();
+  u.onend = () => {
+    if (window.avatar3D) window.avatar3D.stopSpeaking();
+    hideBubble(4000);
+    setState('idle');
+  };
+  u.onerror = () => {
+    if (window.avatar3D) window.avatar3D.stopSpeaking();
+    setState('idle');
+  };
+  window.speechSynthesis.speak(u);
+}
+
+// ===== Touch fix for mobile =====
+(function() {
+  const b = document.getElementById('voice-btn');
+  let touchStart = 0;
+  b.addEventListener('touchstart', e => { e.preventDefault(); touchStart = Date.now(); }, { passive: false });
+  b.addEventListener('touchend', e => {
+    e.preventDefault();
+    const held = Date.now() - touchStart;
+    if (held > 500 && isRecording) stopVoice(); else toggleVoice();
+  }, { passive: false });
+})();
+
+// ===== Init =====
+window.addEventListener('DOMContentLoaded', () => {
+  loadConfig();
+  setState('idle');
+  checkFirstUse();
+  if (config.openaiKey) {
+    setTimeout(() => { showBubble('嗨！点我试试，或按麦克风说话'); hideBubble(5000); }, 1200);
+  }
+  // Register PWA service worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+});
+
+// =================================================================
+//  ANIMATED BACKGROUND CANVAS — Disney-style procedural scenes
+// =================================================================
+(function() {
+  const bgCanvas = document.getElementById('bg-canvas');
+  if (!bgCanvas) return;
+  const ctx = bgCanvas.getContext('2d');
+  let W = 0, H = 0, currentTheme = 'warm', fadeAlpha = 0, fadeTarget = 1, prevTheme = null;
+  let animId = null;
+
+  function resize() {
+    const sec = document.getElementById('avatar-section');
+    const r = sec.getBoundingClientRect();
+    W = bgCanvas.width = r.width * Math.min(window.devicePixelRatio, 2);
+    H = bgCanvas.height = r.height * Math.min(window.devicePixelRatio, 2);
+    bgCanvas.style.width = r.width + 'px';
+    bgCanvas.style.height = r.height + 'px';
+    ctx.setTransform(Math.min(window.devicePixelRatio, 2), 0, 0, Math.min(window.devicePixelRatio, 2), 0, 0);
+    W = r.width; H = r.height;
+  }
+  window.addEventListener('resize', resize);
+  setTimeout(resize, 50);
+
+  // --- Particle pools ---
+  let clouds = [], waves = [], snowflakes = [], stars = [], birds = [], grassBlades = [];
+  let fireflies = [];
+
+  function initClouds(n, baseY, scale) {
+    clouds = [];
+    for (let i = 0; i < n; i++) {
+      clouds.push({
+        x: Math.random() * W * 1.5 - W * 0.25,
+        y: baseY + Math.random() * H * 0.15,
+        w: (60 + Math.random() * 100) * scale,
+        h: (20 + Math.random() * 30) * scale,
+        speed: 3 + Math.random() * 5,
+        opacity: 0.25 + Math.random() * 0.35,
+      });
+    }
+  }
+
+  function initSnowflakes(n) {
+    snowflakes = [];
+    for (let i = 0; i < n; i++) {
+      snowflakes.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        r: 1 + Math.random() * 3,
+        speed: 8 + Math.random() * 20,
+        drift: (Math.random() - 0.5) * 15,
+        opacity: 0.4 + Math.random() * 0.5,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+  }
+
+  function initStars(n) {
+    stars = [];
+    for (let i = 0; i < n; i++) {
+      stars.push({
+        x: Math.random() * W,
+        y: Math.random() * H * 0.65,
+        r: 0.5 + Math.random() * 1.8,
+        twinkleSpeed: 1.5 + Math.random() * 3,
+        phase: Math.random() * Math.PI * 2,
+        brightness: 0.4 + Math.random() * 0.6
+      });
+    }
+  }
+
+  function initFireflies(n) {
+    fireflies = [];
+    for (let i = 0; i < n; i++) {
+      fireflies.push({
+        x: Math.random() * W,
+        y: H * 0.3 + Math.random() * H * 0.5,
+        vx: (Math.random() - 0.5) * 15,
+        vy: (Math.random() - 0.5) * 10,
+        phase: Math.random() * Math.PI * 2,
+        r: 2 + Math.random() * 2,
+      });
+    }
+  }
+
+  function initBirds(n) {
+    birds = [];
+    for (let i = 0; i < n; i++) {
+      birds.push({
+        x: -30 - Math.random() * 200,
+        y: H * 0.08 + Math.random() * H * 0.25,
+        speed: 15 + Math.random() * 25,
+        wingPhase: Math.random() * Math.PI * 2,
+        wingSpeed: 4 + Math.random() * 3,
+        size: 4 + Math.random() * 4,
+        delay: Math.random() * 20, // staggered start
+        active: false
+      });
+    }
+  }
+
+  // --- Drawing helpers ---
+  function drawGradient(stops) {
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    stops.forEach(([pos, color]) => grad.addColorStop(pos, color));
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function drawCloud(c) {
+    ctx.save();
+    ctx.globalAlpha = c.opacity;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    // Puffy Disney-style cloud with overlapping ellipses
+    const cx = c.x, cy = c.y, w = c.w, h = c.h;
+    ctx.ellipse(cx, cy, w * 0.5, h * 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(cx - w * 0.3, cy + h * 0.1, w * 0.35, h * 0.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(cx + w * 0.3, cy + h * 0.05, w * 0.3, h * 0.38, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(cx - w * 0.1, cy - h * 0.25, w * 0.28, h * 0.35, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(cx + w * 0.15, cy - h * 0.2, w * 0.25, h * 0.3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawBird(b, t) {
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.strokeStyle = 'rgba(50,40,30,0.6)';
+    ctx.lineWidth = 1.5;
+    ctx.lineCap = 'round';
+    const wing = Math.sin(b.wingPhase + t * b.wingSpeed) * b.size * 0.7;
+    ctx.beginPath();
+    ctx.moveTo(-b.size, wing * 0.5);
+    ctx.quadraticCurveTo(-b.size * 0.3, wing, 0, 0);
+    ctx.quadraticCurveTo(b.size * 0.3, wing, b.size, wing * 0.5);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawStar(s, t) {
+    const twinkle = 0.5 + 0.5 * Math.sin(s.phase + t * s.twinkleSpeed);
+    ctx.save();
+    ctx.globalAlpha = s.brightness * twinkle;
+    ctx.fillStyle = '#fffde8';
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r * (0.7 + twinkle * 0.3), 0, Math.PI * 2);
+    ctx.fill();
+    // Cross sparkle
+    if (s.r > 1.2) {
+      ctx.globalAlpha = s.brightness * twinkle * 0.4;
+      ctx.strokeStyle = '#fffde8';
+      ctx.lineWidth = 0.5;
+      const len = s.r * 2.5 * twinkle;
+      ctx.beginPath();
+      ctx.moveTo(s.x - len, s.y); ctx.lineTo(s.x + len, s.y);
+      ctx.moveTo(s.x, s.y - len); ctx.lineTo(s.x, s.y + len);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // --- Scene renderers ---
+  function drawWarm(t) {
+    drawGradient([
+      [0, '#f5e6d0'], [0.3, '#ede2d6'], [0.7, '#e8d5c4'], [1, '#dcc8b4']
+    ]);
+    // Soft light rays from top-right
+    ctx.save();
+    ctx.globalAlpha = 0.06 + Math.sin(t * 0.3) * 0.02;
+    const grad = ctx.createRadialGradient(W * 0.8, 0, 0, W * 0.8, 0, H * 0.9);
+    grad.addColorStop(0, 'rgba(255,240,200,0.5)');
+    grad.addColorStop(1, 'rgba(255,240,200,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+    // A few drifting warm dust motes
+    for (let i = 0; i < 8; i++) {
+      const px = ((t * 5 + i * 60) % (W + 40)) - 20;
+      const py = H * 0.2 + Math.sin(t * 0.5 + i * 2) * H * 0.15 + i * 20;
+      ctx.save();
+      ctx.globalAlpha = 0.15 + Math.sin(t + i) * 0.08;
+      ctx.fillStyle = '#f0d0a0';
+      ctx.beginPath();
+      ctx.arc(px, py, 1.5 + Math.sin(t * 0.8 + i) * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  function drawBeach(t) {
+    // Sky gradient
+    drawGradient([
+      [0, '#4da6e8'], [0.25, '#72bfef'], [0.45, '#a8dcf8'],
+      [0.55, '#e8d7a0'], // sand transition
+      [0.62, '#f2dfa0'], // sand
+      [1, '#e8c878']
+    ]);
+
+    // Sun with glow
+    ctx.save();
+    const sunX = W * 0.78, sunY = H * 0.12;
+    const sunGrad = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, 80);
+    sunGrad.addColorStop(0, 'rgba(255,245,200,0.9)');
+    sunGrad.addColorStop(0.3, 'rgba(255,230,150,0.4)');
+    sunGrad.addColorStop(1, 'rgba(255,220,120,0)');
+    ctx.fillStyle = sunGrad;
+    ctx.fillRect(sunX - 80, sunY - 80, 160, 160);
+    ctx.restore();
+
+    // Clouds
+    clouds.forEach(c => {
+      c.x += c.speed * 0.016;
+      if (c.x > W + c.w) c.x = -c.w * 1.5;
+      drawCloud(c);
+    });
+
+    // Ocean waves (multiple layers)
+    const waveY = H * 0.5;
+    for (let layer = 0; layer < 3; layer++) {
+      const yOff = waveY + layer * 8;
+      const alpha = [0.35, 0.25, 0.18][layer];
+      const color = ['#3a8ec4', '#4da6d8', '#6abce8'][layer];
+      const amp = [6, 4, 3][layer];
+      const freq = [0.018, 0.022, 0.015][layer];
+      const spd = [0.8, 0.6, 1.0][layer];
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(0, H);
+      for (let x = 0; x <= W; x += 3) {
+        const y = yOff + Math.sin(x * freq + t * spd + layer) * amp
+                       + Math.sin(x * freq * 1.6 + t * spd * 1.3) * amp * 0.5;
+        ctx.lineTo(x, y);
+      }
+      ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+
+    // Foam line at water's edge
+    ctx.save();
+    ctx.globalAlpha = 0.3 + Math.sin(t * 0.7) * 0.12;
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let x = 0; x <= W; x += 3) {
+      const y = waveY - 2 + Math.sin(x * 0.025 + t * 0.8) * 4;
+      if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    // Sand sparkles
+    for (let i = 0; i < 12; i++) {
+      const sx = (i * 37 + Math.sin(t * 0.3 + i) * 5) % W;
+      const sy = H * 0.6 + (i * 13 % (H * 0.35));
+      ctx.save();
+      ctx.globalAlpha = 0.2 + Math.sin(t * 2 + i * 1.5) * 0.15;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(sx, sy, 0.8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Distant sailboat silhouette
+    const boatX = ((t * 4) % (W + 100)) - 50;
+    const boatY = waveY - 15 + Math.sin(t * 0.8) * 2;
+    ctx.save();
+    ctx.globalAlpha = 0.15;
+    ctx.fillStyle = '#fff';
+    // Sail
+    ctx.beginPath();
+    ctx.moveTo(boatX, boatY);
+    ctx.lineTo(boatX + 3, boatY - 18);
+    ctx.lineTo(boatX + 8, boatY);
+    ctx.closePath();
+    ctx.fill();
+    // Hull
+    ctx.beginPath();
+    ctx.ellipse(boatX + 4, boatY + 2, 10, 2.5, 0, 0, Math.PI);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawMeadow(t) {
+    // Sky
+    drawGradient([
+      [0, '#62b5e5'], [0.3, '#8ed0f0'], [0.5, '#b0e0b0'],
+      [0.6, '#7cbc6c'], [0.8, '#5da54a'], [1, '#4a8c3a']
+    ]);
+
+    // Clouds
+    clouds.forEach(c => {
+      c.x += c.speed * 0.016;
+      if (c.x > W + c.w) c.x = -c.w * 1.5;
+      drawCloud(c);
+    });
+
+    // Rolling hills (layered)
+    const hills = [
+      { y: H * 0.48, amp: 25, freq: 0.008, color: '#72b060', alpha: 0.7 },
+      { y: H * 0.52, amp: 20, freq: 0.012, color: '#5da050', alpha: 0.8 },
+      { y: H * 0.58, amp: 15, freq: 0.015, color: '#4a9040', alpha: 0.9 },
+    ];
+    hills.forEach(h => {
+      ctx.save();
+      ctx.globalAlpha = h.alpha;
+      ctx.fillStyle = h.color;
+      ctx.beginPath();
+      ctx.moveTo(0, H);
+      for (let x = 0; x <= W; x += 2) {
+        ctx.lineTo(x, h.y + Math.sin(x * h.freq + 1.5) * h.amp
+                          + Math.sin(x * h.freq * 2.2 + 0.8) * h.amp * 0.3);
+      }
+      ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    });
+
+    // Trees (simple Disney-style lollipop trees)
+    const treePositions = [
+      { x: W * 0.08, y: H * 0.52, s: 0.7 },
+      { x: W * 0.22, y: H * 0.5, s: 0.85 },
+      { x: W * 0.75, y: H * 0.49, s: 0.9 },
+      { x: W * 0.9, y: H * 0.51, s: 0.75 },
+    ];
+    treePositions.forEach(tp => {
+      const sway = Math.sin(t * 0.6 + tp.x * 0.01) * 2 * tp.s;
+      ctx.save();
+      ctx.translate(tp.x, tp.y);
+      // Trunk
+      ctx.fillStyle = '#6b4a2e';
+      ctx.fillRect(-2.5 * tp.s + sway * 0.3, -5, 5 * tp.s, 30 * tp.s);
+      // Canopy (multiple circles for lush look)
+      ctx.fillStyle = '#3a8a30';
+      const r = 18 * tp.s;
+      const cy = -12 * tp.s;
+      ctx.beginPath(); ctx.arc(sway, cy, r, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#45a038';
+      ctx.beginPath(); ctx.arc(sway - r * 0.4, cy + r * 0.15, r * 0.7, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#50b045';
+      ctx.beginPath(); ctx.arc(sway + r * 0.35, cy + r * 0.1, r * 0.65, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#4aac3a';
+      ctx.beginPath(); ctx.arc(sway + r * 0.05, cy - r * 0.4, r * 0.55, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    });
+
+    // Grass blowing in wind at bottom
+    ctx.save();
+    for (let i = 0; i < 60; i++) {
+      const gx = (i / 60) * W + (i * 7 % 15) - 7;
+      const gy = H * 0.82 + (i * 3 % 20);
+      const gh = 8 + (i * 5 % 10);
+      const sway = Math.sin(t * 1.5 + i * 0.4) * 4;
+      ctx.strokeStyle = `rgba(${60 + i % 30}, ${140 + i % 40}, ${50 + i % 20}, 0.6)`;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(gx, gy);
+      ctx.quadraticCurveTo(gx + sway, gy - gh * 0.6, gx + sway * 1.5, gy - gh);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Flowers
+    const flowerColors = ['#ff6b8a', '#ffb347', '#fff06b', '#ff85c8', '#b388ff'];
+    for (let i = 0; i < 10; i++) {
+      const fx = (i * 47 + 20) % W;
+      const fy = H * 0.75 + (i * 19 % 30);
+      const sway = Math.sin(t * 1.2 + i * 1.3) * 2;
+      ctx.save();
+      ctx.translate(fx + sway, fy);
+      // Stem
+      ctx.strokeStyle = '#4a8a3a';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(sway * -0.3, 8); ctx.stroke();
+      // Petals
+      ctx.fillStyle = flowerColors[i % flowerColors.length];
+      ctx.globalAlpha = 0.7;
+      for (let p = 0; p < 5; p++) {
+        const angle = (p / 5) * Math.PI * 2 + t * 0.2;
+        ctx.beginPath();
+        ctx.ellipse(Math.cos(angle) * 3, Math.sin(angle) * 3, 2.5, 1.5, angle, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Center
+      ctx.fillStyle = '#ffe066';
+      ctx.globalAlpha = 0.9;
+      ctx.beginPath(); ctx.arc(0, 0, 1.5, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+
+    // Birds (occasional, staggered)
+    birds.forEach(b => {
+      b.delay -= 0.016;
+      if (b.delay > 0) return;
+      b.active = true;
+      b.x += b.speed * 0.016;
+      b.y += Math.sin(t * 0.5 + b.x * 0.01) * 0.3;
+      if (b.x > W + 50) { b.x = -40 - Math.random() * 100; b.delay = 8 + Math.random() * 15; }
+      if (b.active) drawBird(b, t);
+    });
+  }
+
+  function drawSnow(t) {
+    // Sky gradient
+    drawGradient([
+      [0, '#b8cce0'], [0.3, '#d0dde8'], [0.5, '#dce8f0'],
+      [0.65, '#e8eef5'], [0.8, '#f0f4f8'], [1, '#e0e8f0']
+    ]);
+
+    // Clouds (heavier, grey-ish)
+    clouds.forEach(c => {
+      c.x += c.speed * 0.012;
+      if (c.x > W + c.w) c.x = -c.w * 1.5;
+      ctx.save();
+      ctx.globalAlpha = c.opacity * 0.6;
+      ctx.fillStyle = '#d0d8e0';
+      // Reuse cloud shape
+      const cx = c.x, cy = c.y, w = c.w, h = c.h;
+      ctx.beginPath(); ctx.ellipse(cx, cy, w * 0.5, h * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(cx - w * 0.3, cy + h * 0.1, w * 0.35, h * 0.4, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(cx + w * 0.3, cy + h * 0.05, w * 0.3, h * 0.38, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    });
+
+    // Snowy hills
+    const snowHills = [
+      { y: H * 0.55, amp: 20, freq: 0.007, color: '#e8eef5' },
+      { y: H * 0.6, amp: 15, freq: 0.012, color: '#f0f4f8' },
+      { y: H * 0.65, amp: 12, freq: 0.015, color: '#f8fafc' },
+    ];
+    snowHills.forEach(h => {
+      ctx.fillStyle = h.color;
+      ctx.beginPath();
+      ctx.moveTo(0, H);
+      for (let x = 0; x <= W; x += 2) {
+        ctx.lineTo(x, h.y + Math.sin(x * h.freq + 0.8) * h.amp);
+      }
+      ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
+    });
+
+    // Pine trees with snow caps
+    const pines = [
+      { x: W * 0.12, y: H * 0.55, s: 0.8 },
+      { x: W * 0.3, y: H * 0.53, s: 1.0 },
+      { x: W * 0.68, y: H * 0.54, s: 0.9 },
+      { x: W * 0.88, y: H * 0.56, s: 0.7 },
+    ];
+    pines.forEach(p => {
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      const s = p.s;
+      // Trunk
+      ctx.fillStyle = '#5a3a20';
+      ctx.fillRect(-2 * s, 0, 4 * s, 18 * s);
+      // Tree layers (triangles)
+      for (let layer = 0; layer < 3; layer++) {
+        const ly = -8 * s - layer * 14 * s;
+        const lw = (22 - layer * 5) * s;
+        const lh = 18 * s;
+        ctx.fillStyle = ['#2a6a3a', '#307040', '#357848'][layer];
+        ctx.beginPath();
+        ctx.moveTo(0, ly - lh * 0.5);
+        ctx.lineTo(-lw * 0.5, ly + lh * 0.3);
+        ctx.lineTo(lw * 0.5, ly + lh * 0.3);
+        ctx.closePath(); ctx.fill();
+        // Snow on branches
+        ctx.fillStyle = 'rgba(240,248,255,0.7)';
+        ctx.beginPath();
+        ctx.moveTo(0, ly - lh * 0.5);
+        ctx.lineTo(-lw * 0.3, ly - lh * 0.1);
+        ctx.lineTo(lw * 0.3, ly - lh * 0.1);
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
+    });
+
+    // Falling snowflakes
+    snowflakes.forEach(sf => {
+      sf.y += sf.speed * 0.016;
+      sf.x += sf.drift * 0.016 + Math.sin(sf.phase + t * 1.5) * 0.3;
+      if (sf.y > H + 10) { sf.y = -10; sf.x = Math.random() * W; }
+      if (sf.x < -10) sf.x = W + 10;
+      if (sf.x > W + 10) sf.x = -10;
+      ctx.save();
+      ctx.globalAlpha = sf.opacity;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(sf.x, sf.y, sf.r, 0, Math.PI * 2);
+      ctx.fill();
+      // Tiny sparkle
+      if (sf.r > 2) {
+        ctx.globalAlpha = sf.opacity * 0.3 * (0.5 + 0.5 * Math.sin(t * 3 + sf.phase));
+        ctx.fillRect(sf.x - sf.r * 1.5, sf.y - 0.3, sf.r * 3, 0.6);
+        ctx.fillRect(sf.x - 0.3, sf.y - sf.r * 1.5, 0.6, sf.r * 3);
+      }
+      ctx.restore();
+    });
+  }
+
+  function drawNight(t) {
+    drawGradient([
+      [0, '#050515'], [0.3, '#0a0a28'], [0.6, '#141440'],
+      [0.75, '#1a1a4a'], [1, '#10102a']
+    ]);
+
+    // Moon
+    const moonX = W * 0.75, moonY = H * 0.15;
+    ctx.save();
+    // Moon glow
+    const moonGlow = ctx.createRadialGradient(moonX, moonY, 0, moonX, moonY, 80);
+    moonGlow.addColorStop(0, 'rgba(200,210,255,0.2)');
+    moonGlow.addColorStop(0.5, 'rgba(150,160,200,0.05)');
+    moonGlow.addColorStop(1, 'rgba(100,100,150,0)');
+    ctx.fillStyle = moonGlow;
+    ctx.fillRect(0, 0, W, H);
+    // Moon disk
+    ctx.fillStyle = '#e0e8ff';
+    ctx.globalAlpha = 0.9;
+    ctx.beginPath();
+    ctx.arc(moonX, moonY, 22, 0, Math.PI * 2);
+    ctx.fill();
+    // Crescent shadow
+    ctx.fillStyle = '#0a0a28';
+    ctx.globalAlpha = 0.6;
+    ctx.beginPath();
+    ctx.arc(moonX + 8, moonY - 3, 18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Stars
+    stars.forEach(s => drawStar(s, t));
+
+    // Shooting star (occasional)
+    const shootPhase = (t * 0.15) % 1;
+    if (shootPhase < 0.08) {
+      const sp = shootPhase / 0.08;
+      const sx = W * 0.2 + sp * W * 0.5;
+      const sy = H * 0.08 + sp * H * 0.2;
+      ctx.save();
+      ctx.globalAlpha = (1 - sp) * 0.6;
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(sx - 30, sy - 10);
+      ctx.stroke();
+      // Trail
+      const trailGrad = ctx.createLinearGradient(sx, sy, sx - 50, sy - 16);
+      trailGrad.addColorStop(0, 'rgba(255,255,255,0.3)');
+      trailGrad.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.strokeStyle = trailGrad;
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(sx - 50, sy - 16);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Silhouette hills
+    ctx.fillStyle = '#0a0a20';
+    ctx.beginPath();
+    ctx.moveTo(0, H);
+    for (let x = 0; x <= W; x += 2) {
+      ctx.lineTo(x, H * 0.7 + Math.sin(x * 0.01 + 0.5) * 20 + Math.sin(x * 0.025) * 8);
+    }
+    ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
+
+    // Fireflies
+    fireflies.forEach(ff => {
+      ff.x += ff.vx * 0.016;
+      ff.y += ff.vy * 0.016;
+      ff.vx += (Math.random() - 0.5) * 0.5;
+      ff.vy += (Math.random() - 0.5) * 0.3;
+      ff.vx *= 0.98; ff.vy *= 0.98;
+      if (ff.x < 0) ff.x = W; if (ff.x > W) ff.x = 0;
+      if (ff.y < H * 0.3) ff.vy += 0.2;
+      if (ff.y > H * 0.9) ff.vy -= 0.2;
+      const glow = 0.3 + 0.7 * Math.max(0, Math.sin(ff.phase + t * 2.5));
+      ctx.save();
+      // Glow
+      const ffGrad = ctx.createRadialGradient(ff.x, ff.y, 0, ff.x, ff.y, ff.r * 4);
+      ffGrad.addColorStop(0, `rgba(200,255,100,${glow * 0.4})`);
+      ffGrad.addColorStop(1, 'rgba(200,255,100,0)');
+      ctx.fillStyle = ffGrad;
+      ctx.fillRect(ff.x - ff.r * 4, ff.y - ff.r * 4, ff.r * 8, ff.r * 8);
+      // Core
+      ctx.globalAlpha = glow;
+      ctx.fillStyle = '#e0ff80';
+      ctx.beginPath();
+      ctx.arc(ff.x, ff.y, ff.r * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
+  }
+
+  // --- Theme setup (init particles per theme) ---
+  function setupTheme(name) {
+    switch (name) {
+      case 'beach':
+        initClouds(5, H * 0.06, 0.8);
+        break;
+      case 'meadow':
+        initClouds(4, H * 0.05, 1.0);
+        initBirds(3);
+        break;
+      case 'snow':
+        initClouds(6, H * 0.04, 1.1);
+        initSnowflakes(80);
+        break;
+      case 'night':
+        initStars(70);
+        initFireflies(12);
+        break;
+      default: // warm
+        break;
+    }
+  }
+
+  // --- Main loop ---
+  let startTime = performance.now();
+  function drawFrame() {
+    animId = requestAnimationFrame(drawFrame);
+    const t = (performance.now() - startTime) / 1000;
+    ctx.clearRect(0, 0, W, H);
+    switch (currentTheme) {
+      case 'beach': drawBeach(t); break;
+      case 'meadow': drawMeadow(t); break;
+      case 'snow': drawSnow(t); break;
+      case 'night': drawNight(t); break;
+      default: drawWarm(t); break;
+    }
+  }
+
+  // Expose
+  window.bgScene = {
+    setTheme(name) {
+      currentTheme = name;
+      resize();
+      setupTheme(name);
+    }
+  };
+
+  // Start
+  setupTheme('warm');
+  drawFrame();
+})();
+</script>
+
+<!-- ===== Three.js 3D Scene — GLB/VRM Character with Pivot Animation ===== -->
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ===== Scene Setup =====
+const canvas = document.getElementById('avatar-canvas');
+const section = document.getElementById('avatar-section');
+const loading = document.getElementById('avatar-loading');
+const loadBarEl = document.getElementById('load-bar');
+function loadText(t) { const p = document.getElementById('load-text'); if (p) p.textContent = t; }
+function loadBar(pct) { if (loadBarEl) loadBarEl.style.width = Math.min(100, pct) + '%'; }
+
+const scene = new THREE.Scene();
+scene.background = null; // transparent — animated bg-canvas shows through
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, premultipliedAlpha: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0x000000, 0); // fully transparent background
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+renderer.shadowMap.enabled = false;
+
+const rect = section.getBoundingClientRect();
+renderer.setSize(rect.width, rect.height);
+
+// Perspective camera — gives real depth to 3D model
+const camera = new THREE.PerspectiveCamera(30, rect.width / rect.height, 0.01, 50);
+camera.position.set(0, 0, 3);
+
+// OrbitControls — mouse drag to rotate, scroll to zoom
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.enablePan = false;        // No panning, just rotate + zoom
+controls.minDistance = 0.3;
+controls.maxDistance = 8;
+controls.rotateSpeed = 0.8;
+controls.zoomSpeed = 0.6;
+let userDragging = false;
+controls.addEventListener('start', () => { userDragging = true; });
+controls.addEventListener('end', () => { setTimeout(() => { userDragging = false; }, 600); });
+
+// ===== Lighting: 3-point setup =====
+// Key light (warm, main illumination from front-right-above)
+const keyLight = new THREE.DirectionalLight(0xfff5e8, 1.2);
+keyLight.position.set(2, 3, 4);
+scene.add(keyLight);
+
+// Fill light (cool, soft, from left)
+const fillLight = new THREE.DirectionalLight(0xe8eeff, 0.5);
+fillLight.position.set(-3, 1, 2);
+scene.add(fillLight);
+
+// Ambient (soft base)
+const ambientLight = new THREE.AmbientLight(0xffeedd, 0.6);
+scene.add(ambientLight);
+
+// Rim light (warm orange, behind+above — for speaking glow & edge definition)
+const rimLight = new THREE.PointLight(0xe88a4a, 0, 8);
+rimLight.position.set(0, 2, -2);
+scene.add(rimLight);
+
+// Subtle under-chin fill
+const bottomFill = new THREE.PointLight(0xffe0c0, 0.15, 5);
+bottomFill.position.set(0, -1, 2);
+scene.add(bottomFill);
+
+// ===== State =====
+let glbModel = null;       // GLB 3D model scene
+let headPivot = null;      // Group pivoted at neck for head rotation
+let bodyPivot = null;      // Group pivoted at base for body sway
+let modelBounds = null;    // { min, max, center, size }
+
+let currentAnalyser = null;
+let isSpeaking = false;
+let fakeLipSync = false;
+const clock = new THREE.Clock();
+
+// ===== Loading Priority: GLB → VRM → PNG =====
+async function loadAvatar() {
+  // 1. Try avatar.glb
+  try {
+    const res = await fetch('avatar.glb', { method: 'HEAD' });
+    if (res.ok) {
+      console.log('[3D] Found avatar.glb, loading...');
+      loadText('正在安住...');
+      loadBar(10);
+      await loadGLB('avatar.glb');
+      return;
+    }
+  } catch(e) {}
+
+  // 2. Try avatar.vrm (treated as glTF)
+  try {
+    const res = await fetch('avatar.vrm', { method: 'HEAD' });
+    if (res.ok) {
+      console.log('[3D] Found avatar.vrm, loading...');
+      loadText('正在安住...');
+      loadBar(10);
+      await loadGLB('avatar.vrm');
+      return;
+    }
+  } catch(e) {}
+
+  // 3. Fallback: show message
+  loadText('请放置 avatar.glb 到文件夹');
+  console.log('[3D] No 3D model found');
+}
+
+// ===== Load GLB/VRM Model =====
+async function loadGLB(url) {
+  const loader = new GLTFLoader();
+  const gltf = await new Promise((resolve, reject) => {
+    loader.load(url, resolve, (progress) => {
+      if (progress.total > 0) {
+        const pct = Math.round(progress.loaded / progress.total * 100);
+        loadText(`加载中 ${pct}%`);
+        loadBar(10 + pct * 0.85);
+      }
+    }, reject);
+  });
+
+  const model = gltf.scene;
+
+  // Compute bounding box in world space
+  const box = new THREE.Box3().setFromObject(model);
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  modelBounds = { min: box.min, max: box.max, center, size };
+
+  console.log(`[3D] Model bounds: size(${size.x.toFixed(2)}, ${size.y.toFixed(2)}, ${size.z.toFixed(2)})`);
+
+  // ---- Build pivot hierarchy ----
+  // Neck pivot at ~68% height — rotating this simulates head turning
+  const neckY = box.min.y + size.y * 0.68;
+  // Waist pivot at ~45% height — for subtle body sway
+  const waistY = box.min.y + size.y * 0.45;
+
+  // headPivot: origin at neck
+  headPivot = new THREE.Group();
+  headPivot.position.set(center.x, neckY, center.z);
+
+  // Move model inside headPivot so neck is at local origin
+  model.position.set(-center.x, -neckY, -center.z);
+  headPivot.add(model);
+
+  // bodyPivot: origin at waist
+  bodyPivot = new THREE.Group();
+  bodyPivot.position.set(0, waistY - neckY, 0);
+  // Wrap headPivot
+  const tempGroup = new THREE.Group();
+  tempGroup.add(headPivot);
+  bodyPivot.add(tempGroup);
+
+  // Root container to position the whole thing
+  const rootGroup = new THREE.Group();
+  rootGroup.position.set(0, neckY - waistY, 0);
+  rootGroup.rotation.y = -Math.PI * 0.5; // Face +X toward camera (rotate -90°)
+  rootGroup.add(bodyPivot);
+  scene.add(rootGroup);
+
+  glbModel = { model, rootGroup, bodyPivot, headPivot, tempGroup };
+
+  // ---- Position camera: show full character, face centered ----
+  const focusY = box.min.y + size.y * 0.55; // Center on mid-upper body
+  const frameHeight = size.y * 1.1; // Show the whole character with margin
+  const fov = THREE.MathUtils.degToRad(camera.fov);
+  const dist = (frameHeight / 2) / Math.tan(fov / 2);
+
+  camera.position.set(
+    center.x,
+    focusY,
+    center.z + dist * 1.3  // Pull back further
+  );
+  camera.lookAt(center.x, focusY, center.z);
+
+  // ---- OrbitControls: drag to rotate ----
+  controls.target.set(center.x, focusY, center.z);
+  controls.update();
+
+  // Update light positions relative to model
+  keyLight.position.set(center.x + size.x, focusY + size.y * 0.4, center.z + dist);
+  fillLight.position.set(center.x - size.x * 1.5, focusY, center.z + dist * 0.5);
+  rimLight.position.set(center.x, focusY + size.y * 0.3, center.z - size.z * 2);
+  bottomFill.position.set(center.x, box.min.y, center.z + dist * 0.5);
+
+  // Improve materials if needed
+  model.traverse((child) => {
+    if (child.isMesh) {
+      child.frustumCulled = false;
+      if (child.material) {
+        child.material.side = THREE.FrontSide;
+        // Ensure good rendering
+        if (child.material.map) {
+          child.material.map.colorSpace = THREE.SRGBColorSpace;
+        }
+      }
+    }
+  });
+}
+
+// ===== Animation Variables =====
+let headTargetRX = 0, headTargetRY = 0, headTargetRZ = 0;
+let headCurrentRX = 0, headCurrentRY = 0, headCurrentRZ = 0;
+let headMoveTimer = 0;
+let headMoveNextAt = 2 + Math.random() * 2;
+
+let breathPhase = 0;
+let bodySwayPhase = 0;
+
+let touchReactX = 0, touchReactY = 0, touchReactDecay = 0;
+
+// --- Enhanced idle: smooth natural motions ---
+// Weight shift: whole body gently leans side to side like standing
+let weightShiftPhase = Math.random() * Math.PI * 2;
+// Look around: head occasionally turns to "look" at something
+let lookTimer = 0, lookNextAt = 4 + Math.random() * 5;
+let lookTargetRY = 0, lookTargetRX = 0; // bigger, more deliberate head turns
+// Curious tilt: occasional head cock to one side
+let curiousTimer = 0, curiousNextAt = 10 + Math.random() * 15;
+let curiousTiltZ = 0, curiousTargetZ = 0;
+// Nod: occasional gentle nod as if agreeing with thoughts
+let nodTimer = 0, nodNextAt = 12 + Math.random() * 10;
+let nodPhase = -1;
+// Settle: periodic deep breath / shoulder drop
+let settleTimer = 0, settleNextAt = 15 + Math.random() * 20;
+let settlePhase = -1;
+// Emotion bounce
+let bouncePhase = -1, bounceStrength = 0;
+
+// Emotion state from chat
+let currentEmotion = 'neutral';
+let emotionDecay = 0;
+
+// ===== Main Animation Loop =====
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t = clock.elapsedTime;
+
+  if (!glbModel) {
+    renderer.render(scene, camera);
+    return;
+  }
+
+  // --- Breathing (~4 second cycle) ---
+  breathPhase += dt * 1.6;
+  const breathVal = Math.sin(breathPhase); // -1 to 1
+  const breathNorm = breathVal * 0.5 + 0.5; // 0 to 1
+
+  // --- Idle head movement (pause while user drags) ---
+  if (!userDragging) {
+    headMoveTimer += dt;
+    if (headMoveTimer >= headMoveNextAt) {
+      headTargetRX = (Math.random() - 0.5) * 0.06;
+      headTargetRY = (Math.random() - 0.5) * 0.10;
+      headTargetRZ = (Math.random() - 0.5) * 0.03;
+      headMoveTimer = 0;
+      headMoveNextAt = 2.5 + Math.random() * 3;
+    }
+  }
+  // Smooth Z interpolation (tilt stays separate)
+  const headLerp = 1 - Math.exp(-dt * 1.8);
+  headCurrentRZ += (headTargetRZ - headCurrentRZ) * headLerp;
+
+  // --- Weight shift: gentle body lean side-to-side like natural standing ---
+  weightShiftPhase += dt * 0.25; // very slow ~25s full cycle
+  const weightLeanY = Math.sin(weightShiftPhase) * 0.012;
+  const weightLeanX = Math.cos(weightShiftPhase * 0.7) * 0.006;
+
+  // --- Look around: deliberate head turns to glance around ---
+  if (!isSpeaking && !userDragging) {
+    lookTimer += dt;
+    if (lookTimer >= lookNextAt) {
+      // Bigger, more noticeable head turns
+      lookTargetRY = (Math.random() - 0.5) * 0.18; // wider horizontal look
+      lookTargetRX = (Math.random() - 0.3) * 0.08; // slight up/down
+      lookTimer = 0;
+      lookNextAt = 3 + Math.random() * 5;
+    }
+  }
+
+  // --- Curious tilt: head cocks to one side ---
+  curiousTimer += dt;
+  if (curiousTimer >= curiousNextAt && !isSpeaking) {
+    curiousTargetZ = (Math.random() > 0.5 ? 1 : -1) * (0.04 + Math.random() * 0.06);
+    curiousTimer = 0;
+    curiousNextAt = 8 + Math.random() * 15;
+    // Reset after a couple seconds
+    setTimeout(() => { curiousTargetZ = 0; }, 1500 + Math.random() * 2000);
+  }
+  curiousTiltZ += (curiousTargetZ - curiousTiltZ) * dt * 2.0;
+
+  // --- Nod: gentle agreeing nod ---
+  nodTimer += dt;
+  let nodVal = 0;
+  if (nodPhase < 0 && nodTimer >= nodNextAt && !isSpeaking) {
+    nodPhase = 0;
+    nodTimer = 0;
+    nodNextAt = 8 + Math.random() * 12;
+  }
+  if (nodPhase >= 0) {
+    nodPhase += dt * 1.8; // nod lasts ~1.7s
+    if (nodPhase > 1) { nodPhase = -1; }
+    else { nodVal = Math.sin(nodPhase * Math.PI * 3) * 0.03 * (1 - nodPhase); }
+  }
+
+  // --- Settle: deep breath / shoulder drop (visible body motion) ---
+  settleTimer += dt;
+  let settleVal = 0;
+  if (settlePhase < 0 && settleTimer >= settleNextAt && !isSpeaking) {
+    settlePhase = 0;
+    settleTimer = 0;
+    settleNextAt = 18 + Math.random() * 25;
+  }
+  if (settlePhase >= 0) {
+    settlePhase += dt * 0.5; // ~2s
+    if (settlePhase > 1) { settlePhase = -1; }
+    else { settleVal = Math.sin(settlePhase * Math.PI) * 0.01; }
+  }
+
+  // --- Emotion reactions ---
+  let emotionBounceY = 0, emotionHeadExtra = 0;
+  if (bouncePhase >= 0) {
+    bouncePhase += dt * 3;
+    if (bouncePhase > 1) { bouncePhase = -1; }
+    else {
+      emotionBounceY = Math.sin(bouncePhase * Math.PI * 3) * bounceStrength * Math.max(0, 1 - bouncePhase);
+    }
+  }
+  if (emotionDecay > 0) {
+    emotionDecay = Math.max(0, emotionDecay - dt * 0.3);
+    if (currentEmotion === 'thinking') {
+      emotionHeadExtra = Math.sin(t * 0.8) * 0.05 * emotionDecay;
+    } else if (currentEmotion === 'surprised') {
+      emotionHeadExtra = -0.04 * emotionDecay;
+    }
+  }
+
+  // --- Touch reaction decay ---
+  if (touchReactDecay > 0) {
+    touchReactDecay = Math.max(0, touchReactDecay - dt * 2.5);
+  }
+
+  // --- Audio analysis for lip sync ---
+  let mouthOpen = 0;
+  if (isSpeaking && currentAnalyser) {
+    const data = new Uint8Array(currentAnalyser.frequencyBinCount);
+    currentAnalyser.getByteFrequencyData(data);
+    let sum = 0;
+    const count = Math.min(20, data.length);
+    for (let i = 0; i < count; i++) sum += data[i];
+    mouthOpen = Math.min(1, (sum / count) / 90);
+    mouthOpen = mouthOpen * mouthOpen;
+  } else if (fakeLipSync && isSpeaking) {
+    mouthOpen = 0.3 + Math.sin(t * 8) * 0.2 + Math.sin(t * 13) * 0.15;
+    mouthOpen = Math.max(0, Math.min(1, mouthOpen));
+  }
+
+  // ==================================================
+  //  Apply animations to pivot hierarchy
+  // ==================================================
+
+  // HEAD PIVOT: smooth layered rotations
+  // Smoothly blend look targets (not instant snap)
+  const lookLerp = 1 - Math.exp(-dt * 1.2); // smooth ~0.8s transition
+  headCurrentRX += (lookTargetRX + headTargetRX - headCurrentRX) * lookLerp;
+  headCurrentRY += (lookTargetRY + headTargetRY - headCurrentRY) * lookLerp;
+
+  let finalRX = headCurrentRX + nodVal + emotionHeadExtra;
+  let finalRY = headCurrentRY;
+  let finalRZ = headCurrentRZ + curiousTiltZ;
+
+  // Touch: turn head toward touch
+  finalRY += touchReactX * touchReactDecay * 0.15;
+  finalRX -= touchReactY * touchReactDecay * 0.08;
+
+  // Speaking: natural rhythmic gestures
+  if (isSpeaking) {
+    finalRX += Math.sin(t * 2.5) * 0.03 * (0.5 + mouthOpen * 0.5);
+    finalRY += Math.sin(t * 1.5) * 0.025;
+    finalRZ += Math.sin(t * 2.0) * 0.015;
+  }
+
+  glbModel.headPivot.rotation.x = finalRX;
+  glbModel.headPivot.rotation.y = finalRY;
+  glbModel.headPivot.rotation.z = finalRZ;
+
+  // BODY PIVOT: weight shift + breathing sway + settle
+  bodySwayPhase += dt * 0.4;
+  const bodySway = Math.sin(bodySwayPhase) * 0.008 + weightLeanY;
+  const bodySwayZ = Math.cos(bodySwayPhase * 0.7) * 0.005 + weightLeanX;
+
+  glbModel.bodyPivot.rotation.y = bodySway;
+  glbModel.bodyPivot.rotation.x = bodySwayZ;
+
+  // BREATHING: natural chest rise/fall + settle deep breath
+  const breathScaleX = 1 + breathNorm * 0.008;
+  const breathScaleY = 1 + breathNorm * 0.005 + settleVal;
+  const breathLiftY = breathNorm * 0.004 + settleVal * 0.5 + emotionBounceY;
+
+  glbModel.model.scale.set(breathScaleX, breathScaleY, 1);
+  const baseY = -modelBounds.center.x;
+  glbModel.model.position.y = -(modelBounds.min.y + modelBounds.size.y * 0.68) + breathLiftY;
+
+  // SPEAKING: body leans slightly forward
+  if (isSpeaking) {
+    const leanForward = mouthOpen * 0.01;
+    glbModel.bodyPivot.rotation.x += leanForward;
+  }
+
+  // --- Lights ---
+  // Rim light pulses with speech
+  const rimTarget = isSpeaking ? (1.0 + mouthOpen * 2.0) : 0.1;
+  rimLight.intensity += (rimTarget - rimLight.intensity) * dt * 5;
+
+  // Subtle key light variation with breathing
+  keyLight.intensity = 1.1 + breathVal * 0.08;
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+// ===== Resize =====
+function onResize() {
+  const r = section.getBoundingClientRect();
+  if (r.width === 0 || r.height === 0) return;
+  camera.aspect = r.width / r.height;
+  camera.updateProjectionMatrix();
+  renderer.setSize(r.width, r.height);
+}
+window.addEventListener('resize', onResize);
+
+// ===== Canvas Interaction: tap = emoji, drag = orbit =====
+let pointerDownPos = null;
+canvas.addEventListener('pointerdown', (e) => {
+  pointerDownPos = { x: e.clientX, y: e.clientY };
+});
+canvas.addEventListener('pointerup', (e) => {
+  if (!pointerDownPos) return;
+  const dx = e.clientX - pointerDownPos.x;
+  const dy = e.clientY - pointerDownPos.y;
+  // Only trigger tap if barely moved (not a drag)
+  if (Math.abs(dx) < 5 && Math.abs(dy) < 5) {
+    if (window.onAvatarTap) window.onAvatarTap(e);
+  }
+  pointerDownPos = null;
+});
+canvas.style.cursor = 'grab';
+
+// ===== Expose 3D API =====
+window.avatar3D = {
+  startSpeaking(analyser) {
+    currentAnalyser = analyser;
+    isSpeaking = true;
+    fakeLipSync = false;
+  },
+  startFakeLipSync() {
+    currentAnalyser = null;
+    isSpeaking = true;
+    fakeLipSync = true;
+  },
+  stopSpeaking() {
+    isSpeaking = false;
+    fakeLipSync = false;
+    currentAnalyser = null;
+  },
+  reactToTouch(nx, ny) {
+    touchReactX = nx * 3;
+    touchReactY = ny * 3;
+    touchReactDecay = 1;
+  },
+  setEmotion(emotion) {
+    currentEmotion = emotion;
+    emotionDecay = 1;
+    if (emotion === 'happy') {
+      bouncePhase = 0;
+      bounceStrength = 0.012;
+    } else if (emotion === 'surprised') {
+      bouncePhase = 0;
+      bounceStrength = 0.008;
+    }
+  },
+  setBgTheme(t) {
+    // Smoothly update lights to match new theme (bg handled by bg-canvas)
+    const targetKey = new THREE.Color(t.key);
+    const targetAmb = new THREE.Color(t.amb);
+    const targetFill = new THREE.Color(t.fill);
+
+    const startKey = keyLight.color.clone();
+    const startKeyI = keyLight.intensity;
+    const startAmb = ambientLight.color.clone();
+    const startAmbI = ambientLight.intensity;
+    const startFill = fillLight.color.clone();
+
+    const duration = 600;
+    const startTime = performance.now();
+
+    function lerpTheme() {
+      const elapsed = performance.now() - startTime;
+      const p = Math.min(elapsed / duration, 1);
+      const ease = p * (2 - p);
+
+      keyLight.color.copy(startKey).lerp(targetKey, ease);
+      keyLight.intensity = startKeyI + (t.keyI - startKeyI) * ease;
+      ambientLight.color.copy(startAmb).lerp(targetAmb, ease);
+      ambientLight.intensity = startAmbI + (t.ambI - startAmbI) * ease;
+      fillLight.color.copy(startFill).lerp(targetFill, ease);
+
+      if (p < 1) requestAnimationFrame(lerpTheme);
+    }
+    lerpTheme();
+  }
+};
+
+// ===== Init =====
+async function init() {
+  await loadAvatar();
+  loadText('准备就绪！');
+  loadBar(100);
+  setTimeout(() => { loading.classList.add('hidden'); }, 300);
+  setTimeout(() => { loading.style.display = 'none'; }, 1100);
+  animate();
+}
+
+init().catch(err => {
+  console.error('[3D] Init failed:', err);
+  loading.querySelector('p').textContent = '3D加载失败: ' + err.message;
+});
+</script>
+</body>
+</html>

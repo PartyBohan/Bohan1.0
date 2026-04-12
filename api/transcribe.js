@@ -1,8 +1,7 @@
 // Vercel Serverless Function: proxy OpenAI Whisper STT
 // Uses base64 JSON approach to avoid multipart streaming issues
-export const config = { api: { bodyParser: { sizeLimit: '10mb' } } };
 
-export default async function handler(req, res) {
+const handler = async function (req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', '*');
@@ -59,4 +58,7 @@ export default async function handler(req, res) {
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
-}
+};
+
+module.exports = handler;
+module.exports.config = { api: { bodyParser: { sizeLimit: '10mb' } } };

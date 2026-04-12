@@ -169,6 +169,62 @@
   }
   #chat-bubble.visible { opacity: 1; transform: translateY(0); display: block; }
 
+  /* ===== Chat History Panel ===== */
+  #history-toggle {
+    position: fixed; top: 14px; left: 14px; z-index: 100;
+    width: 36px; height: 36px; border-radius: 50%;
+    border: none; cursor: pointer;
+    background: rgba(255,255,255,0.7); backdrop-filter: blur(8px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    display: flex; align-items: center; justify-content: center;
+  }
+  #history-toggle svg { width: 18px; height: 18px; fill: #8a7a6a; }
+  #history-panel {
+    position: fixed; top: 0; left: 0; bottom: 0; width: 300px;
+    background: rgba(253,250,246,0.97); backdrop-filter: blur(12px);
+    box-shadow: 4px 0 20px rgba(0,0,0,0.1);
+    z-index: 200; transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  #history-panel.open { transform: translateX(0); }
+  #history-panel-header {
+    padding: 16px 20px; display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid #e8ddd0;
+  }
+  #history-panel-header h2 { font-size: 18px; color: #3a3028; margin: 0; }
+  #history-close {
+    background: none; border: none; cursor: pointer; font-size: 20px; color: #8a7a6a; padding: 4px;
+  }
+  #history-list {
+    flex: 1; overflow-y: auto; padding: 12px 16px;
+  }
+  .history-msg {
+    margin-bottom: 10px; padding: 8px 12px;
+    border-radius: 12px; font-size: 13px; line-height: 1.5;
+    word-wrap: break-word; max-width: 90%;
+  }
+  .history-msg.user {
+    background: linear-gradient(135deg, #f0a36b, #e88a4a);
+    color: #fff; margin-left: auto; text-align: right;
+    border-bottom-right-radius: 4px;
+  }
+  .history-msg.assistant {
+    background: rgba(255,255,255,0.9); color: #3a3028;
+    border: 1px solid #e8ddd0;
+    border-bottom-left-radius: 4px;
+  }
+  #history-empty {
+    color: #b0a090; text-align: center; margin-top: 40px; font-size: 14px;
+  }
+  #clear-history-btn {
+    margin: 12px 16px; padding: 8px;
+    background: none; border: 1px solid #d4c3b0; border-radius: 8px;
+    color: #8a7a6a; font-size: 13px; cursor: pointer;
+  }
+  #clear-history-btn:hover { background: #f0e8dd; }
+
   /* ===== Controls ===== */
   #controls {
     flex: 1; display: flex; flex-direction: column;
@@ -364,7 +420,25 @@
 <body>
 
 <div id="app">
-  <button id="settings-toggle" onclick="toggleSettings()">
+  <!-- History toggle (left) -->
+  <button id="history-toggle" onclick="toggleHistory()">
+    <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+  </button>
+
+  <!-- Chat History Panel -->
+  <div id="history-panel">
+    <div id="history-panel-header">
+      <h2>聊天记录</h2>
+      <button id="history-close" onclick="toggleHistory()">&times;</button>
+    </div>
+    <div id="history-list">
+      <div id="history-empty">还没有聊天记录</div>
+    </div>
+    <button id="clear-history-btn" onclick="clearChatHistoryUI()">清空聊天记录</button>
+  </div>
+
+  <!-- Settings panel (hidden from regular users, accessible via ?admin=1) -->
+  <button id="settings-toggle" onclick="toggleSettings()" style="display:none;">
     <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1115.6 12 3.6 3.6 0 0112 15.6z"/></svg>
   </button>
 
@@ -673,10 +747,60 @@ function saveConfig() {
 }
 
 function toggleSettings() { document.getElementById('settings-panel').classList.toggle('open'); }
+function toggleHistory() { document.getElementById('history-panel').classList.toggle('open'); }
+
+// ===== Admin mode: show settings only with ?admin=1 =====
+(function checkAdmin() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('admin') === '1') {
+    document.getElementById('settings-toggle').style.display = '';
+  }
+})();
+
+// ===== Chat History UI =====
+function renderHistoryPanel() {
+  const list = document.getElementById('history-list');
+  const empty = document.getElementById('history-empty');
+  // Load from sessionStorage
+  const stored = JSON.parse(sessionStorage.getItem('chat-display-history') || '[]');
+  if (stored.length === 0) {
+    list.innerHTML = '<div id="history-empty">还没有聊天记录</div>';
+    return;
+  }
+  let html = '';
+  for (const msg of stored) {
+    const cls = msg.role === 'user' ? 'user' : 'assistant';
+    const escaped = msg.content.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    html += `<div class="history-msg ${cls}">${escaped}</div>`;
+  }
+  list.innerHTML = html;
+  list.scrollTop = list.scrollHeight;
+}
+
+function addToHistory(role, content) {
+  const stored = JSON.parse(sessionStorage.getItem('chat-display-history') || '[]');
+  stored.push({ role, content });
+  // Keep max 100 messages in display history
+  if (stored.length > 100) stored.splice(0, stored.length - 100);
+  sessionStorage.setItem('chat-display-history', JSON.stringify(stored));
+}
+
+function clearChatHistoryUI() {
+  sessionStorage.removeItem('chat-display-history');
+  chatHistory = [];
+  renderHistoryPanel();
+}
+
+// Render history on load
+renderHistoryPanel();
 
 // ===== First-use: auto-open settings if no API key and no proxy =====
 async function checkFirstUse() {
   const proxy = await hasProxy();
+  if (!config.openaiKey && !proxy) {
+    // In proxy mode, don't prompt for API key — just work
+    return;
+  }
   if (!config.openaiKey && !proxy) {
     document.getElementById('settings-panel').classList.add('open');
     setTimeout(() => {
@@ -955,12 +1079,14 @@ async function sendMessage(text) {
   if (!config.openaiKey && !proxy) { showBubble('请先在Settings填入OpenAI API Key'); hideBubble(5000); return; }
   setState('thinking'); showBubble('让我想想...');
   chatHistory.push({ role:'user', content: text });
+  addToHistory('user', text);
   // Keep last ~30 turns in memory as conversational context for GPT
   if (chatHistory.length > 30) chatHistory = chatHistory.slice(-30);
 
   try {
     const reply = await callOpenAI(text);
     chatHistory.push({ role:'assistant', content: reply });
+    addToHistory('assistant', reply);
 
     // Detect emotion and trigger avatar reaction
     const emotion = detectEmotion(reply);

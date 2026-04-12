@@ -920,7 +920,13 @@ async function transcribeAndSend(blob) {
     if (useProxy()) {
       // Proxy mode: send audio as base64 JSON (avoids multipart issues on Vercel)
       const buf = await blob.arrayBuffer();
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+      const bytes = new Uint8Array(buf);
+      // Chunked base64 encoding (spread operator crashes on large arrays)
+      let binary = '';
+      for (let i = 0; i < bytes.length; i += 8192) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+      }
+      const base64 = btoa(binary);
       res = await fetch('/api/transcribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

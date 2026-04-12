@@ -910,16 +910,15 @@ function clearChatHistoryUI() {
   renderHistoryPanel();
 }
 
-// Also restore chatHistory context from saved history on load
-(function restoreChatContext() {
-  const stored = loadHistory();
-  // Load last 30 messages as context for GPT
-  const recent = stored.slice(-30);
-  chatHistory = recent.map(m => ({ role: m.role, content: m.content }));
-})();
-
 // Render history on load
 renderHistoryPanel();
+
+// Restore chatHistory context deferred (chatHistory declared later)
+function _restoreChatContext() {
+  const stored = loadHistory();
+  const recent = stored.slice(-30);
+  chatHistory = recent.map(m => ({ role: m.role, content: m.content }));
+}
 
 // ===== First-use: auto-open settings if no API key and no proxy =====
 async function checkFirstUse() {
@@ -974,18 +973,16 @@ function stopWaveAnim() {
 
 // ===== State =====
 let chatHistory = [];
+// Restore saved context now that chatHistory is declared
+_restoreChatContext();
 
-// ===== Chat History: IN-MEMORY ONLY =====
-// Kept in the chatHistory array for the duration of this session, so GPT
-// can reference earlier turns as context. NOT persisted — closing/refreshing
-// the page clears everything. We also actively wipe any previously persisted
-// IndexedDB data from older app versions on startup.
-function saveChatHistory() { /* no-op: session-only memory */ }
+// ===== Chat History: persistent via localStorage =====
+// chatHistory array holds recent turns as context for GPT.
+// Display history is saved in localStorage for the user to review.
+// Clean up legacy IndexedDB from older versions
 (function purgeOldChatDB() {
   try { indexedDB.deleteDatabase('AvatarChat'); } catch(e) {}
 })();
-// Also clear on explicit unload (defense-in-depth; memory would die anyway)
-window.addEventListener('beforeunload', () => { chatHistory = []; });
 
 // ===== Emotion Detection =====
 function detectEmotion(text) {
@@ -1119,7 +1116,7 @@ const cancelBtn = document.getElementById('cancel-btn');
 async function initMic() {
   if (micStream) return true;
   try { micStream = await navigator.mediaDevices.getUserMedia({ audio: true }); return true; }
-  catch(e) { voiceHint.textContent = '请允许麦克风权限'; return false; }
+  catch(e) { voiceHint.textContent = currentLang === 'en' ? 'Please allow microphone' : '请允许麦克风权限'; return false; }
 }
 
 function toggleVoice() {

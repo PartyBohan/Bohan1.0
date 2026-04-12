@@ -1,6 +1,5 @@
 // Vercel Serverless Function: proxy Fish Audio TTS
-// Environment variables: FISH_KEY, FISH_REF (set in Vercel dashboard)
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -12,7 +11,7 @@ module.exports = async function handler(req, res) {
   if (!fishKey || !fishRef) return res.status(500).json({ error: 'Server missing FISH_KEY/FISH_REF' });
 
   try {
-    const { text, format } = req.body;
+    const { text, format } = req.body || {};
     if (!text) return res.status(400).json({ error: 'Missing text' });
 
     const response = await fetch('https://api.fish.audio/v1/tts', {
@@ -34,11 +33,10 @@ module.exports = async function handler(req, res) {
       return res.status(response.status).json({ error: err });
     }
 
-    // Stream the audio bytes back
     res.setHeader('Content-Type', response.headers.get('content-type') || 'audio/mpeg');
     const buffer = Buffer.from(await response.arrayBuffer());
     return res.status(200).send(buffer);
   } catch (e) {
-    return res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: 'tts proxy error: ' + e.message });
   }
 }

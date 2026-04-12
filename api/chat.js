@@ -1,6 +1,5 @@
 // Vercel Serverless Function: proxy OpenAI Chat Completions
-// Environment variable: OPENAI_API_KEY (set in Vercel dashboard)
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -12,7 +11,6 @@ module.exports = async function handler(req, res) {
 
   try {
     const body = req.body;
-    // Rate limit: cap max_tokens to prevent abuse
     if (body.max_tokens > 500) body.max_tokens = 500;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -28,6 +26,6 @@ module.exports = async function handler(req, res) {
     if (!response.ok) return res.status(response.status).json(data);
     return res.status(200).json(data);
   } catch (e) {
-    return res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: 'chat proxy error: ' + e.message });
   }
 }

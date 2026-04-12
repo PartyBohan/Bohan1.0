@@ -1,16 +1,34 @@
-// Vercel Serverless Function: proxy OpenAI Chat Completions
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
+// Vercel Edge Function: streaming proxy for OpenAI Chat
+export const config = { runtime: 'edge' };
+
+export default async function handler(req) {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type'
+      }
+    });
+  }
+  if (req.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'POST only' }), {
+      status: 405,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+    });
+  }
 
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'Server missing OPENAI_API_KEY' });
+  if (!apiKey) {
+    return new Response(JSON.stringify({ error: 'Server missing OPENAI_API_KEY' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+    });
+  }
 
   try {
-    const body = req.body;
+    const body = await req.json();
     if (body.max_tokens > 500) body.max_tokens = 500;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -23,9 +41,14 @@ export default async function handler(req, res) {
     });
 
     const data = await response.json();
-    if (!response.ok) return res.status(response.status).json(data);
-    return res.status(200).json(data);
+    return new Response(JSON.stringify(data), {
+      status: response.status,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+    });
   } catch (e) {
-    return res.status(500).json({ error: 'chat proxy error: ' + e.message });
+    return new Response(JSON.stringify({ error: 'chat proxy error: ' + e.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+    });
   }
 }

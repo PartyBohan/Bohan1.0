@@ -857,38 +857,66 @@ applyLang();
 })();
 
 // ===== Chat History UI =====
+const HISTORY_KEY = 'avatar-chat-history';
+
+function loadHistory() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch(e) { return []; }
+}
+
+function saveHistory(arr) {
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(arr)); } catch(e) {}
+}
+
 function renderHistoryPanel() {
   const list = document.getElementById('history-list');
-  const empty = document.getElementById('history-empty');
-  // Load from sessionStorage
-  const stored = JSON.parse(sessionStorage.getItem('chat-display-history') || '[]');
+  const stored = loadHistory();
   if (stored.length === 0) {
-    list.innerHTML = '<div id="history-empty">还没有聊天记录</div>';
+    list.innerHTML = `<div id="history-empty">${t('historyEmpty')}</div>`;
     return;
   }
   let html = '';
+  let lastDate = '';
   for (const msg of stored) {
+    // Date separator
+    if (msg.time) {
+      const d = new Date(msg.time);
+      const dateStr = d.toLocaleDateString(currentLang === 'zh' ? 'zh-CN' : 'en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      if (dateStr !== lastDate && msg.role === 'user') {
+        html += `<div style="text-align:center;font-size:11px;color:#b0a090;margin:12px 0 6px;">── ${dateStr} ──</div>`;
+        lastDate = dateStr;
+      }
+    }
     const cls = msg.role === 'user' ? 'user' : 'assistant';
-    const escaped = msg.content.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const escaped = msg.content.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
     html += `<div class="history-msg ${cls}">${escaped}</div>`;
   }
   list.innerHTML = html;
-  list.scrollTop = list.scrollHeight;
+  // Auto-scroll to bottom
+  requestAnimationFrame(() => { list.scrollTop = list.scrollHeight; });
 }
 
 function addToHistory(role, content) {
-  const stored = JSON.parse(sessionStorage.getItem('chat-display-history') || '[]');
-  stored.push({ role, content });
-  // Keep max 100 messages in display history
-  if (stored.length > 100) stored.splice(0, stored.length - 100);
-  sessionStorage.setItem('chat-display-history', JSON.stringify(stored));
+  const stored = loadHistory();
+  stored.push({ role, content, time: Date.now() });
+  // Keep max 200 messages
+  if (stored.length > 200) stored.splice(0, stored.length - 200);
+  saveHistory(stored);
+  renderHistoryPanel();
 }
 
 function clearChatHistoryUI() {
-  sessionStorage.removeItem('chat-display-history');
+  localStorage.removeItem(HISTORY_KEY);
   chatHistory = [];
   renderHistoryPanel();
 }
+
+// Also restore chatHistory context from saved history on load
+(function restoreChatContext() {
+  const stored = loadHistory();
+  // Load last 30 messages as context for GPT
+  const recent = stored.slice(-30);
+  chatHistory = recent.map(m => ({ role: m.role, content: m.content }));
+})();
 
 // Render history on load
 renderHistoryPanel();

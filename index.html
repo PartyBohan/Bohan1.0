@@ -923,14 +923,16 @@ function _restoreChatContext() {
 // ===== First-use: auto-open settings if no API key and no proxy =====
 async function checkFirstUse() {
   const proxy = await hasProxy();
-  if (!config.openaiKey && !proxy) {
-    // In proxy mode, don't prompt for API key — just work
+  if (proxy) {
+    // Proxy available (Vercel) — no key needed, hide settings
     return;
   }
-  if (!config.openaiKey && !proxy) {
+  // No proxy (e.g. GitHub Pages) — show settings so user can enter keys
+  document.getElementById('settings-toggle').classList.add('show');
+  if (!config.openaiKey) {
     document.getElementById('settings-panel').classList.add('open');
     setTimeout(() => {
-      showBubble('请先在 Settings 里填入 OpenAI API Key');
+      showBubble(t('noKeyMsg'));
       hideBubble(5000);
     }, 1500);
   }

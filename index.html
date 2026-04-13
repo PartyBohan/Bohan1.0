@@ -464,8 +464,16 @@
 
   <div id="settings-panel">
     <h2>Settings</h2>
-    <div class="sg"><label>OpenAI API Key</label><input type="password" id="cfg-openai-key" placeholder="sk-..." oninput="saveConfig()"><small>platform.openai.com</small></div>
-    <div class="sg"><label>OpenAI Model</label><input type="text" id="cfg-openai-model" placeholder="gpt-4o" oninput="saveConfig()"><small>推荐 gpt-4o（更强对话）/ gpt-4.1 / gpt-4o-mini（便宜）</small></div>
+    <div class="sg">
+      <label>AI Provider</label>
+      <div style="display:flex;gap:8px;margin-top:4px;">
+        <button class="vm-btn active" data-provider="openai" onclick="setProvider('openai')">OpenAI</button>
+        <button class="vm-btn" data-provider="deepseek" onclick="setProvider('deepseek')">DeepSeek</button>
+      </div>
+      <small id="provider-hint">中国用户推荐 DeepSeek（国内直连）</small>
+    </div>
+    <div class="sg"><label>API Key</label><input type="password" id="cfg-openai-key" placeholder="sk-..." oninput="saveConfig()"><small id="key-hint">platform.openai.com</small></div>
+    <div class="sg"><label>Model</label><input type="text" id="cfg-openai-model" placeholder="gpt-4o" oninput="saveConfig()"><small id="model-hint">推荐 gpt-4o / gpt-4o-mini</small></div>
     <div class="sg"><label>Fish Audio API Key</label><input type="password" id="cfg-fish-key" placeholder="your-key" oninput="saveConfig()"><small>fish.audio</small></div>
     <div class="sg"><label>Fish Audio Reference ID</label><input type="text" id="cfg-fish-ref" placeholder="your-voice-model-id" oninput="saveConfig()"><small>你的声音模型ID</small></div>
     <div class="sg"><label>System Prompt</label><textarea id="cfg-system-prompt" rows="6" oninput="saveConfig()" style="width:100%;font-family:inherit;font-size:12px;padding:6px;border:1px solid #d4c3b0;border-radius:6px;background:#fdfaf6;"></textarea><small>思想困惑引导者的核心定位（基于禅宗 / Naval / 自我反思）</small></div>
@@ -537,6 +545,7 @@
 <script>
 // ===== Config =====
 const DEFAULTS = {
+  aiProvider: 'openai',  // 'openai' or 'deepseek'
   openaiKey: '',
   openaiModel: 'gpt-4o',
   fishKey: '',
@@ -750,16 +759,40 @@ function loadConfig() {
   document.getElementById('cfg-fish-key').value = config.fishKey;
   document.getElementById('cfg-fish-ref').value = config.fishRef;
   document.getElementById('cfg-system-prompt').value = config.systemPrompt;
+  // Restore provider UI
+  updateProviderUI(config.aiProvider || 'openai');
 }
 
 function saveConfig() {
   config.openaiKey = document.getElementById('cfg-openai-key').value.trim();
-  config.openaiModel = document.getElementById('cfg-openai-model').value.trim() || 'gpt-4o';
+  config.openaiModel = document.getElementById('cfg-openai-model').value.trim() || (config.aiProvider === 'deepseek' ? 'deepseek-chat' : 'gpt-4o');
   config.fishKey = document.getElementById('cfg-fish-key').value.trim();
   config.fishRef = document.getElementById('cfg-fish-ref').value.trim();
   config.systemPrompt = document.getElementById('cfg-system-prompt').value.trim();
   config.promptVersion = PROMPT_VERSION;
   try { localStorage.setItem('avatar-cfg', JSON.stringify(config)); } catch(e) {}
+}
+
+const AI_PROVIDERS = {
+  openai: { url: 'https://api.openai.com/v1/chat/completions', defaultModel: 'gpt-4o', keyHint: 'platform.openai.com', modelHint: '推荐 gpt-4o / gpt-4o-mini', placeholder: 'sk-...' },
+  deepseek: { url: 'https://api.deepseek.com/chat/completions', defaultModel: 'deepseek-chat', keyHint: 'platform.deepseek.com', modelHint: '推荐 deepseek-chat / deepseek-reasoner', placeholder: 'sk-...' }
+};
+
+function updateProviderUI(provider) {
+  const info = AI_PROVIDERS[provider] || AI_PROVIDERS.openai;
+  document.querySelectorAll('[data-provider]').forEach(b => b.classList.toggle('active', b.dataset.provider === provider));
+  document.getElementById('key-hint').textContent = info.keyHint;
+  document.getElementById('model-hint').textContent = info.modelHint;
+  document.getElementById('cfg-openai-key').placeholder = info.placeholder;
+  document.getElementById('cfg-openai-model').placeholder = info.defaultModel;
+}
+
+function setProvider(provider) {
+  config.aiProvider = provider;
+  config.openaiModel = AI_PROVIDERS[provider].defaultModel;
+  document.getElementById('cfg-openai-model').value = config.openaiModel;
+  updateProviderUI(provider);
+  saveConfig();
 }
 
 function toggleSettings() { document.getElementById('settings-panel').classList.toggle('open'); }
@@ -1122,7 +1155,57 @@ async function initMic() {
 }
 
 function toggleVoice() {
+  // DeepSeek users or no OpenAI key: use browser speech recognition
+  const provider = config.aiProvider || 'openai';
+  const canWhisper = provider === 'openai' && (config.openaiKey || _proxyAvailable);
+  if (!canWhisper && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+    if (isRecording) stopBrowserSTT(); else startBrowserSTT();
+    return;
+  }
   if (isRecording) stopVoice(); else startVoiceRecording();
+}
+
+// ===== Browser Speech Recognition (for DeepSeek / China) =====
+let _browserSTT = null;
+function startBrowserSTT() {
+  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRec) { voiceHint.textContent = currentLang === 'en' ? 'Speech not supported' : '浏览器不支持语音'; return; }
+  _browserSTT = new SpeechRec();
+  _browserSTT.lang = currentLang === 'en' ? 'en-US' : 'zh-CN';
+  _browserSTT.interimResults = false;
+  _browserSTT.continuous = false;
+  isRecording = true;
+  voiceBtn.classList.add('recording');
+  cancelBtn.classList.add('show');
+  setState('listening');
+  _browserSTT.onresult = (e) => {
+    const text = e.results[0][0].transcript.trim();
+    isRecording = false;
+    voiceBtn.classList.remove('recording');
+    cancelBtn.classList.remove('show');
+    if (text) { textInput.value = text; sendMessage(text); }
+    else { showBubble(t('notClear')); hideBubble(3000); setState('idle'); }
+  };
+  _browserSTT.onerror = (e) => {
+    isRecording = false;
+    voiceBtn.classList.remove('recording');
+    cancelBtn.classList.remove('show');
+    if (e.error === 'no-speech') { showBubble(t('notClear')); }
+    else { showBubble(t('sttError') + e.error); }
+    hideBubble(3000); setState('idle');
+  };
+  _browserSTT.onend = () => {
+    isRecording = false;
+    voiceBtn.classList.remove('recording');
+    cancelBtn.classList.remove('show');
+  };
+  _browserSTT.start();
+}
+function stopBrowserSTT() {
+  if (_browserSTT) { _browserSTT.stop(); _browserSTT = null; }
+  isRecording = false;
+  voiceBtn.classList.remove('recording');
+  cancelBtn.classList.remove('show');
 }
 
 function cancelVoice() {
@@ -1251,7 +1334,7 @@ async function sendMessage(text) {
   }
 }
 
-// ===== OpenAI =====
+// ===== AI Chat (OpenAI / DeepSeek) =====
 async function callOpenAI(text) {
   const payload = {
     model: config.openaiModel,
@@ -1259,9 +1342,18 @@ async function callOpenAI(text) {
     max_tokens: 300, temperature: 0.9, top_p: 0.92, presence_penalty: 0.6, frequency_penalty: 0.5
   };
   const viaProxy = useProxy();
-  const url = viaProxy ? '/api/chat' : 'https://api.openai.com/v1/chat/completions';
-  const headers = { 'Content-Type': 'application/json' };
-  if (!viaProxy) headers['Authorization'] = `Bearer ${config.openaiKey}`;
+  const provider = config.aiProvider || 'openai';
+  const providerInfo = AI_PROVIDERS[provider] || AI_PROVIDERS.openai;
+
+  let url, headers = { 'Content-Type': 'application/json' };
+  if (viaProxy) {
+    url = '/api/chat';
+    // Tell proxy which provider to use
+    payload._provider = provider;
+  } else {
+    url = providerInfo.url;
+    headers['Authorization'] = `Bearer ${config.openaiKey}`;
+  }
 
   const res = await fetch(url, { method:'POST', headers, body: JSON.stringify(payload) });
   if (!res.ok) throw new Error((await res.json().catch(()=>({}))).error?.message || `API ${res.status}`);

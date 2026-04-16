@@ -1273,10 +1273,12 @@ let _avatarImg = null;
 })();
 
 // Extract a short insight keyword from text — bilingual (CN / EN)
+// Branches by currentRole: zen → zen/mindfulness keywords, ceo → startup/business keywords
 function extractInsight(text) {
   const isCN = /[\u4e00-\u9fff]/.test(text);
-  // Each rule: [regex, CN label, EN label]
-  const rules = [
+
+  // --- Zen Monk rules ---
+  const zenRules = [
     [/焦虑.*手|攥|握|松/,           '松手',   'Let Go'],
     [/焦虑|紧张|慌|急|anxious|anxiety/i, '观', 'Observe'],
     [/害怕|恐惧|怕|fear|afraid/i,   '勇',     'Courage'],
@@ -1306,13 +1308,51 @@ function extractInsight(text) {
     [/孤独|alone|lonely/i,          '在',     'Present'],
     [/意义|meaning|purpose/i,       '行',     'Walk'],
   ];
+  const zenFallbacks = isCN
+    ? ['观','觉','悟','见','行','空','静','明']
+    : ['See','Be','Now','Still','Open','Wake'];
+
+  // --- CEO / Startup rules ---
+  const ceoRules = [
+    [/PMF|product.*market|市场.*匹配|产品.*契合/i,    '验证',   'Validate'],
+    [/融资|投资|funding|fundrais|raise/i,             '杠杆',   'Leverage'],
+    [/团队|招人|hire|talent|team/i,                   '组局',   'Rally'],
+    [/增长|growth|scale|扩张/i,                       '飞轮',   'Flywheel'],
+    [/用户|客户|customer|user/i,                      '需求',   'Need'],
+    [/竞争|competitor|护城河|moat/i,                   '壁垒',   'Moat'],
+    [/迭代|MVP|最小.*产品|iterate/i,                   '快跑',   'Ship It'],
+    [/失败|pivot|转型|fail/i,                         '转身',   'Pivot'],
+    [/盈利|利润|profit|margin|revenue/i,              '造血',   'Monetize'],
+    [/战略|strategy|方向|vision/i,                     '格局',   'Vision'],
+    [/执行|execution|落地|deliver/i,                   '死磕',   'Execute'],
+    [/数据|metric|指标|data/i,                        '量化',   'Measure'],
+    [/品牌|brand|定位|position/i,                     '心智',   'Brand'],
+    [/创新|innovate|颠覆|disrupt/i,                    '破局',   'Disrupt'],
+    [/焦虑|紧张|慌|压力|stress|anxiety/i,              '定力',   'Grit'],
+    [/坚持|毅力|persever|persist|endure/i,            '长期',   'Long Game'],
+    [/合伙|partner|联盟|alliance/i,                   '共赢',   'Win-Win'],
+    [/资源|resource|network|人脉/i,                   '连接',   'Connect'],
+    [/时间|效率|time|efficien/i,                      '聚焦',   'Focus'],
+    [/风险|risk|不确定|uncertain/i,                    '赌对',   'Bet Smart'],
+    [/选择|decide|决策|priority/i,                     '取舍',   'Prioritize'],
+    [/文化|culture|价值观|value/i,                     '基因',   'Culture'],
+    [/复利|compound|long.*term/i,                     '复利',   'Compound'],
+    [/迷茫|方向|不知道|lost|confused/i,                '初心',   'Origin'],
+    [/控制|control|放权|delegat/i,                     '授权',   'Empower'],
+    [/孤独|alone|lonely|创业.*苦/i,                    '同行',   'Together'],
+    [/意义|meaning|purpose|使命/i,                     '使命',   'Mission'],
+    [/成长|grow|学习|learn/i,                         '进化',   'Evolve'],
+  ];
+  const ceoFallbacks = isCN
+    ? ['破局','格局','飞轮','死磕','聚焦','造血','杠杆','验证']
+    : ['Build','Ship','Focus','Grow','Lead','Win','Dare','Rise'];
+
+  const rules = currentRole === 'ceo' ? ceoRules : zenRules;
+  const fallbacks = currentRole === 'ceo' ? ceoFallbacks : zenFallbacks;
+
   for (const [re, cn, en] of rules) {
     if (re.test(text)) return isCN ? cn : en;
   }
-  // Fallback
-  const fallbacks = isCN
-    ? ['观','觉','悟','见','行','空','静','明']
-    : ['See','Be','Now','Still','Open','Wake'];
   return fallbacks[Math.floor(Math.random() * fallbacks.length)];
 }
 
@@ -1320,25 +1360,25 @@ function generateShareCard(text) {
   return new Promise((resolve) => {
     const draw = (avatarImg) => {
       const dpr = 2;
-      const W = 720;
-      const pad = 40;
-      const lineH = 33;
-      const fontSize = 22;
-      const brandH = 60; // branding area at bottom
-      const insightH = 44; // keyword area between avatar and text
+      // 9:16 portrait ratio
+      const W = 540;
+      const pad = 36;
+      const lineH = 32;
+      const fontSize = 21;
+      const brandH = 80; // signature / branding area at bottom
 
       // --- Pre-measure text to compute dynamic height ---
       const measureCanvas = document.createElement('canvas');
       const mCtx = measureCanvas.getContext('2d');
       mCtx.font = fontSize + 'px -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif';
-      const maxTextW = W - pad * 2 - 30;
+      const maxTextW = W - pad * 2 - 24;
       const lines = wrapText(mCtx, text, maxTextW);
       const textBlockH = lines.length * lineH;
 
-      // Avatar image zone — fixed at ~520px (comfortable for 3:4 source)
-      const imgH = 520;
-      // Text zone = insight + quote mark + text + padding + branding
-      const textZone = insightH + 36 + textBlockH + 24 + brandH;
+      // Avatar image zone — 60% of 960 base height
+      const imgH = 576;
+      // Text zone = quote mark + text + gap + branding
+      const textZone = 40 + textBlockH + 20 + brandH;
       const H = imgH + textZone;
 
       const c = document.createElement('canvas');
@@ -1366,34 +1406,38 @@ function generateShareCard(text) {
         ctx.drawImage(avatarImg, sx, sy, sw, sh);
         ctx.restore();
 
-        // Gradient fade
-        const fadeGrad = ctx.createLinearGradient(0, imgH - 90, 0, imgH + 5);
+        // Gradient fade at bottom of avatar
+        const fadeGrad = ctx.createLinearGradient(0, imgH - 110, 0, imgH + 5);
         fadeGrad.addColorStop(0, 'rgba(237,226,214,0)');
-        fadeGrad.addColorStop(0.55, 'rgba(237,226,214,0.65)');
+        fadeGrad.addColorStop(0.5, 'rgba(237,226,214,0.55)');
         fadeGrad.addColorStop(1, '#ede2d6');
         ctx.fillStyle = fadeGrad;
-        ctx.fillRect(0, imgH - 90, W, 95);
+        ctx.fillRect(0, imgH - 110, W, 115);
       }
 
-      // --- Insight keyword (centered at bottom of avatar zone) ---
+      // --- Insight keyword — large white text straddling boundary ---
       const keyword = extractInsight(text);
       ctx.save();
-      ctx.font = 'bold 20px -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif';
-      ctx.fillStyle = '#e88a4a';
       ctx.textAlign = 'center';
-      const kwW = ctx.measureText(keyword).width;
-      // Draw a subtle pill background
-      ctx.fillStyle = 'rgba(232,138,74,0.1)';
-      roundRect(ctx, W / 2 - kwW / 2 - 16, imgH - 6, kwW + 32, 32, 16);
-      ctx.fill();
-      // Keyword text
-      ctx.fillStyle = '#e88a4a';
-      ctx.font = 'bold 18px -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif';
-      ctx.fillText(keyword, W / 2, imgH + 16);
+      ctx.textBaseline = 'middle';
+      // Large bold font — Chinese single chars get bigger treatment
+      const kwFontSize = keyword.length <= 2 ? 52 : 38;
+      ctx.font = 'bold ' + kwFontSize + 'px "PingFang SC", "Hiragino Sans GB", -apple-system, sans-serif';
+      const kwY = imgH - 2; // straddle the boundary line
+      // Text shadow / glow for readability against avatar
+      ctx.shadowColor = 'rgba(0,0,0,0.45)';
+      ctx.shadowBlur = 18;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 2;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(keyword, W / 2, kwY);
+      // Double-paint for stronger glow
+      ctx.shadowBlur = 8;
+      ctx.fillText(keyword, W / 2, kwY);
       ctx.restore();
 
       // --- Text zone ---
-      const tTop = imgH + insightH;
+      const tTop = imgH + 6;
 
       // Quote mark
       ctx.fillStyle = 'rgba(232,138,74,0.12)';
@@ -1404,7 +1448,6 @@ function generateShareCard(text) {
       const accentGrad = ctx.createLinearGradient(0, tTop + 10, 0, tTop + 10 + textBlockH);
       accentGrad.addColorStop(0, '#e88a4a');
       accentGrad.addColorStop(1, '#f0a36b');
-
       ctx.fillStyle = accentGrad;
       roundRect(ctx, pad, tTop + 14, 3.5, textBlockH + 4, 2);
       ctx.fill();
@@ -1414,39 +1457,38 @@ function generateShareCard(text) {
       lines.forEach((line, i) => {
         ctx.fillStyle = '#3a3028';
         ctx.font = fontSize + 'px -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif';
-        ctx.fillText(line, pad + 18, textStartY + i * lineH + 22);
+        ctx.fillText(line, pad + 16, textStartY + i * lineH + 22);
       });
 
-      // --- Bottom branding ---
-      const bottomY = H - brandH + 5;
+      // --- Footer / 落款 ---
+      const footerY = H - brandH;
 
-      // Divider
-      ctx.strokeStyle = 'rgba(180,160,140,0.2)';
-      ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(pad, bottomY); ctx.lineTo(W - pad, bottomY); ctx.stroke();
+      // Thin divider
+      ctx.strokeStyle = 'rgba(180,160,140,0.18)';
+      ctx.lineWidth = 0.5;
+      ctx.beginPath(); ctx.moveTo(pad, footerY + 8); ctx.lineTo(W - pad, footerY + 8); ctx.stroke();
 
-      // Brand
-      const brand = currentRole === 'zen' ? '\u7985\u5B97\u5C0F\u50E7' : '\u89C6\u611FCEO';
+      // Signature line — role-aware
+      const isZen = currentRole === 'zen';
+      const sigText = isZen ? '—— 禅宗小僧 · Bohan' : '—— 视感CEO · Bohan';
       ctx.fillStyle = '#9a8a7a';
-      ctx.font = '14px -apple-system, "PingFang SC", sans-serif';
-      ctx.fillText("Bohan's Avatar", pad, bottomY + 24);
+      ctx.font = '14px -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(sigText, pad, footerY + 32);
 
-      // Role pill
-      ctx.font = '12px -apple-system, "PingFang SC", sans-serif';
-      const tagW = ctx.measureText(brand).width + 14;
-      ctx.fillStyle = 'rgba(232,138,74,0.1)';
-      roundRect(ctx, pad + 130, bottomY + 10, tagW, 20, 10);
-      ctx.fill();
-      ctx.fillStyle = '#e88a4a';
-      ctx.font = '11px -apple-system, "PingFang SC", sans-serif';
-      ctx.fillText(brand, pad + 137, bottomY + 24);
-
-      // URL
-      ctx.fillStyle = 'rgba(180,160,140,0.45)';
+      // Date stamp (right side)
+      const now = new Date();
+      const dateStr = now.getFullYear() + '.' + String(now.getMonth() + 1).padStart(2, '0') + '.' + String(now.getDate()).padStart(2, '0');
+      ctx.fillStyle = 'rgba(180,160,140,0.5)';
       ctx.font = '11px -apple-system, sans-serif';
-      const urlText = 'bohan.partykeys.org';
-      const urlW = ctx.measureText(urlText).width;
-      ctx.fillText(urlText, W - pad - urlW, bottomY + 24);
+      ctx.textAlign = 'right';
+      ctx.fillText(dateStr, W - pad, footerY + 32);
+
+      // URL centered below
+      ctx.fillStyle = 'rgba(180,160,140,0.4)';
+      ctx.font = '11px -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('bohan.partykeys.org', W / 2, footerY + 56);
 
       resolve(c.toDataURL('image/png'));
     };

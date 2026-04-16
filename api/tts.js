@@ -48,7 +48,8 @@ export default async function handler(req) {
         text,
         reference_id: fishRef,
         format: format || 'mp3',
-        latency: 'normal'
+        latency: 'balanced',
+        chunk_length: 100
       })
     });
 

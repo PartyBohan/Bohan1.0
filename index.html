@@ -1315,19 +1315,25 @@ async function sendMessage(text) {
     if (window.avatar3D && window.avatar3D.setEmotion) window.avatar3D.setEmotion(emotion);
 
     setState('speaking');
-    typewriter(reply, 45);
 
-    // TTS: use Fish Audio if keys provided OR if proxy is available
+    // Start TTS FIRST (so audio request fires immediately), then begin typewriter in parallel
     const canFish = (config.fishKey && config.fishRef) || useProxy();
+    let ttsPromise;
     if (canFish) {
-      const fishOk = await speakWithFishAudio(reply);
-      if (!fishOk) {
-        console.warn('[TTS] Fish Audio failed, using browser TTS');
-        speakWithBrowserTTS(reply);
-      }
+      ttsPromise = speakWithFishAudio(reply).then(ok => {
+        if (!ok) {
+          console.warn('[TTS] Fish Audio failed, using browser TTS');
+          speakWithBrowserTTS(reply);
+        }
+      });
     } else {
       speakWithBrowserTTS(reply);
+      ttsPromise = Promise.resolve();
     }
+
+    // Typewriter runs in parallel with TTS — text and audio appear together
+    typewriter(reply, 45);
+    await ttsPromise;
   } catch(err) {
     showBubble(t('apiError') + err.message); hideBubble(5000);
     setState('idle');
@@ -1545,17 +1551,38 @@ function getAudioCtx() {
 // ===== Fish Audio TTS with AudioContext for lip sync =====
 // Split text into short sentences for faster TTS
 function splitSentences(text) {
-  // Split on Chinese/English sentence endings, keep chunks short
-  const parts = text.match(/[^。！？.!?\n]+[。！？.!?\n]?/g) || [text];
-  // Merge very short chunks together (< 8 chars)
+  // FIRST chunk: aggressive split on commas/colons too, max ~20 chars (so audio plays ASAP)
+  // REST: split on sentence endings, merge short fragments
+  text = text.trim();
+  if (!text) return [];
+
+  // Try to find an early break in the first 20 chars: ， 、 ； : , ; or 。 ！ ？ . ! ?
+  let firstChunk = '';
+  let rest = text;
+  const earlyBreakRe = /^[\s\S]*?[，、；：,;:。！？.!?\n]/;
+  const m = text.match(earlyBreakRe);
+  if (m && m[0].length <= 30) {
+    firstChunk = m[0].trim();
+    rest = text.slice(m[0].length).trim();
+  } else {
+    // No early break — just take first ~20 chars at a word boundary
+    const cut = Math.min(20, text.length);
+    firstChunk = text.slice(0, cut).trim();
+    rest = text.slice(cut).trim();
+  }
+
+  // Split rest by sentence endings, merge short ones
+  const parts = rest.match(/[^。！？.!?\n]+[。！？.!?\n]?/g) || (rest ? [rest] : []);
   const merged = [];
   let buf = '';
   for (const p of parts) {
     buf += p;
-    if (buf.length >= 8) { merged.push(buf.trim()); buf = ''; }
+    if (buf.length >= 12) { merged.push(buf.trim()); buf = ''; }
   }
   if (buf.trim()) merged.push(buf.trim());
-  return merged.filter(s => s.length > 0);
+
+  const result = [firstChunk, ...merged].filter(s => s.length > 0);
+  return result;
 }
 
 // Fetch one TTS chunk
@@ -1576,7 +1603,7 @@ async function fetchTTSChunk(text) {
         'Authorization': 'Bearer ' + config.fishKey,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ text, reference_id: config.fishRef, format: 'mp3', latency: 'normal' })
+      body: JSON.stringify({ text, reference_id: config.fishRef, format: 'mp3', latency: 'balanced', chunk_length: 100 })
     });
   } else {
     return null;

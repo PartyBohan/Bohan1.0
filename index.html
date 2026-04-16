@@ -192,6 +192,19 @@
   }
   #lang-toggle:active { transform: scale(0.95); }
   #lang-toggle .flag { font-size: 18px; line-height: 1; }
+  #voice-toggle {
+    position: fixed; top: 60px; right: 14px; z-index: 100;
+    height: 36px; border-radius: 18px;
+    border: none; cursor: pointer;
+    background: rgba(255,255,255,0.7); backdrop-filter: blur(8px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 12px; gap: 5px;
+    font-size: 14px; color: #5a4a3a;
+    transition: transform 0.15s;
+  }
+  #voice-toggle:active { transform: scale(0.95); }
+  #voice-toggle .vicon { font-size: 16px; line-height: 1; }
   #history-panel {
     position: fixed; top: 0; left: 0; bottom: 0; width: 300px;
     background: rgba(253,250,246,0.97); backdrop-filter: blur(12px);
@@ -445,6 +458,12 @@
   <button id="lang-toggle" onclick="toggleLang()">
     <span class="flag" id="lang-flag">🇺🇸</span>
     <span id="lang-label">EN</span>
+  </button>
+
+  <!-- Voice mode toggle (right, below language) -->
+  <button id="voice-toggle" onclick="toggleVoiceMode()">
+    <span class="vicon" id="voice-icon">🎙</span>
+    <span id="voice-label">原声</span>
   </button>
 
   <!-- Chat History Panel -->
@@ -816,7 +835,8 @@ const I18N = {
     historyTitle: '聊天记录', historyEmpty: '还没有聊天记录', clearHistory: '清空聊天记录',
     bgWarm: '🏠 暖光', bgBeach: '🏖 海边', bgMeadow: '🌿 草地', bgSnow: '❄️ 雪中', bgNight: '🌙 星夜',
     loadText: '正在安住...',
-    greeting: '嗨！点我试试，或按麦克风说话'
+    greeting: '嗨！点我试试，或按麦克风说话',
+    voiceOriginal: '原声', voiceCartoon: '卡通'
   },
   en: {
     flag: '🇨🇳', label: '中文',
@@ -832,7 +852,8 @@ const I18N = {
     historyTitle: 'Chat History', historyEmpty: 'No messages yet', clearHistory: 'Clear history',
     bgWarm: '🏠 Warm', bgBeach: '🏖 Beach', bgMeadow: '🌿 Meadow', bgSnow: '❄️ Snow', bgNight: '🌙 Night',
     loadText: 'Loading...',
-    greeting: 'Hey! Tap me or press the mic to talk'
+    greeting: 'Hey! Tap me or press the mic to talk',
+    voiceOriginal: 'Voice', voiceCartoon: 'Cartoon'
   }
 };
 
@@ -858,6 +879,9 @@ function applyLang() {
   input.placeholder = currentRole === 'zen' ? s.zenPlaceholder : s.ceoPlaceholder;
   // Voice hint
   document.getElementById('voice-hint').textContent = s.voiceHint;
+  // Voice mode toggle button
+  const vlabel = document.getElementById('voice-label');
+  if (vlabel) vlabel.textContent = (typeof voiceMode !== 'undefined' && voiceMode === 'cartoon') ? s.voiceCartoon : s.voiceOriginal;
   // History panel
   document.querySelector('#history-panel-header h2').textContent = s.historyTitle;
   const emptyEl = document.getElementById('history-empty');
@@ -1401,12 +1425,26 @@ function setBg(name) {
 
 // ===== Voice Mode =====
 let voiceMode = 'original'; // 'original' or 'cartoon'
+try { voiceMode = localStorage.getItem('avatar-voice-mode') || 'original'; } catch(e) {}
 function setVoiceMode(mode) {
   voiceMode = mode;
+  try { localStorage.setItem('avatar-voice-mode', mode); } catch(e) {}
+  // Update old settings buttons (still inside admin panel)
   document.querySelectorAll('.vm-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.mode === mode);
   });
+  // Update top-right toggle button
+  const vIcon = document.getElementById('voice-icon');
+  const vLabel = document.getElementById('voice-label');
+  const s = I18N[currentLang] || I18N.zh;
+  if (vIcon) vIcon.textContent = mode === 'cartoon' ? '🎀' : '🎙';
+  if (vLabel) vLabel.textContent = mode === 'cartoon' ? s.voiceCartoon : s.voiceOriginal;
 }
+function toggleVoiceMode() {
+  setVoiceMode(voiceMode === 'cartoon' ? 'original' : 'cartoon');
+}
+// Apply persisted voice mode on load
+setVoiceMode(voiceMode);
 
 // ===== Ambient Sound System (Web Audio API synthesis) =====
 let ambientCtx = null, ambientNodes = [];

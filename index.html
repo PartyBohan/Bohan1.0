@@ -1272,40 +1272,44 @@ let _avatarImg = null;
   img.src = 'avatar-card.jpg';
 })();
 
-// Extract a short insight keyword from text (2-6 chars, zen-flavored)
+// Extract a short insight keyword from text — bilingual (CN / EN)
 function extractInsight(text) {
-  // Map of keyword patterns → insight labels
-  const rules = [
-    [/焦虑|紧张|慌|急/,       '观'],
-    [/害怕|恐惧|怕/,          '勇'],
-    [/迷茫|迷失|不知道/,      '觉'],
-    [/纠结|选择|犹豫/,        '舍'],
-    [/痛苦|难受|苦/,          '渡'],
-    [/执着|放不下|抓/,        '放'],
-    [/焦虑.*手|攥|握|松/,     '松手'],
-    [/呼吸|吸|停/,            '息'],
-    [/自我|我是谁|身份/,      '无我'],
-    [/镜子|投射|reflection/i, '照'],
-    [/标签|定义|label/i,      '破相'],
-    [/知识|工具|knowledge/i,  '空杯'],
-    [/开悟|enlighten/i,       '悟'],
-    [/月亮|finger|moon/i,     '见月'],
-    [/方向|事业|career/i,     '行'],
-    [/杠杆|leverage/i,        '乘'],
-    [/时间|复利|long.*term/i, '恒'],
-    [/authentic|真/,          '真'],
-    [/anxious|anxiety|fear/i, 'Let go'],
-    [/who am i|identity/i,    'Self'],
-    [/breathe|breath/i,       'Breathe'],
-    [/mirror|project/i,       'Reflect'],
-    [/pain|suffer/i,          'Release'],
-    [/choice|choose|decide/i, 'Choose'],
-  ];
-  for (const [re, label] of rules) {
-    if (re.test(text)) return label;
-  }
-  // Fallback: pick a universal zen keyword
   const isCN = /[\u4e00-\u9fff]/.test(text);
+  // Each rule: [regex, CN label, EN label]
+  const rules = [
+    [/焦虑.*手|攥|握|松/,           '松手',   'Let Go'],
+    [/焦虑|紧张|慌|急|anxious|anxiety/i, '观', 'Observe'],
+    [/害怕|恐惧|怕|fear|afraid/i,   '勇',     'Courage'],
+    [/迷茫|迷失|不知道|lost|confused/i, '觉',  'Awaken'],
+    [/纠结|选择|犹豫|choice|choose|decide/i, '舍', 'Choose'],
+    [/痛苦|难受|苦|pain|suffer/i,   '渡',     'Release'],
+    [/执着|放不下|抓|cling|attach/i, '放',     'Let Go'],
+    [/呼吸|吸|停|breathe|breath/i,  '息',     'Breathe'],
+    [/自我|我是谁|身份|who am i|identity/i, '无我', 'Self'],
+    [/镜子|投射|mirror|project|reflect/i, '照', 'Reflect'],
+    [/标签|定义|label|define/i,     '破相',   'Unname'],
+    [/知识|工具|knowledge|tool/i,   '空杯',   'Empty'],
+    [/开悟|enlighten/i,             '悟',     'Awaken'],
+    [/月亮|finger|moon/i,           '见月',   'See'],
+    [/方向|事业|career|direction/i, '行',     'Move'],
+    [/杠杆|leverage/i,              '乘',     'Lever'],
+    [/时间|复利|long.*term|compound/i, '恒',  'Endure'],
+    [/authentic|真|real/i,          '真',     'Be Real'],
+    [/控制|control/i,               '放',     'Surrender'],
+    [/关系|relationship/i,          '照',     'Reflect'],
+    [/成长|grow/i,                  '觉',     'Grow'],
+    [/情绪|emotion|feeling/i,       '观',     'Observe'],
+    [/未来|future|tomorrow/i,       '此刻',   'Be Here'],
+    [/过去|past|regret/i,           '放',     'Let Go'],
+    [/比较|compar/i,                '真',     'Be You'],
+    [/压力|stress|pressure/i,       '息',     'Breathe'],
+    [/孤独|alone|lonely/i,          '在',     'Present'],
+    [/意义|meaning|purpose/i,       '行',     'Walk'],
+  ];
+  for (const [re, cn, en] of rules) {
+    if (re.test(text)) return isCN ? cn : en;
+  }
+  // Fallback
   const fallbacks = isCN
     ? ['观','觉','悟','见','行','空','静','明']
     : ['See','Be','Now','Still','Open','Wake'];

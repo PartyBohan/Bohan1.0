@@ -1238,21 +1238,74 @@ function cancelVoice() {
   setTimeout(() => setState('idle'), 1500);
 }
 
+// Pick a MediaRecorder mimeType the browser actually supports
+function pickMimeType() {
+  const candidates = [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/mp4;codecs=mp4a.40.2',  // Safari
+    'audio/mp4',
+    'audio/ogg;codecs=opus',
+    ''  // empty = browser default
+  ];
+  for (const m of candidates) {
+    if (m === '' || (window.MediaRecorder && MediaRecorder.isTypeSupported(m))) {
+      return m;
+    }
+  }
+  return '';
+}
+let _recMime = '';
+
 async function startVoiceRecording() {
   if (isRecording) return;
   if (!(await initMic())) return;
-  isRecording = true; audioChunks = []; voiceCancelled = false;
+  audioChunks = []; voiceCancelled = false;
+  try {
+    _recMime = pickMimeType();
+    const opts = _recMime ? { mimeType: _recMime } : {};
+    mediaRecorder = new MediaRecorder(micStream, opts);
+    console.log('[Mic] Using mimeType:', mediaRecorder.mimeType || _recMime || 'default');
+  } catch(e) {
+    console.error('[Mic] MediaRecorder failed:', e);
+    showBubble('录音不支持: ' + e.message); hideBubble(4000);
+    setState('idle');
+    return;
+  }
+  isRecording = true;
   voiceBtn.classList.add('recording');
   cancelBtn.classList.add('show');
   setState('listening');
-  mediaRecorder = new MediaRecorder(micStream, { mimeType: 'audio/webm' });
-  mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+  mediaRecorder.ondataavailable = e => { if (e.data && e.data.size > 0) audioChunks.push(e.data); };
+  mediaRecorder.onerror = (e) => {
+    console.error('[Mic] Recorder error:', e.error || e);
+    showBubble('录音错误: ' + (e.error?.message || 'unknown')); hideBubble(4000);
+    isRecording = false;
+    voiceBtn.classList.remove('recording');
+    cancelBtn.classList.remove('show');
+    setState('idle');
+  };
   mediaRecorder.onstop = async () => {
     cancelBtn.classList.remove('show');
-    if (voiceCancelled || audioChunks.length === 0) return;
-    await transcribeAndSend(new Blob(audioChunks, { type: 'audio/webm' }));
+    if (voiceCancelled) { setState('idle'); return; }
+    if (audioChunks.length === 0) {
+      console.warn('[Mic] No audio chunks captured (mimeType:', _recMime || 'default', ')');
+      showBubble(t('notClear') || '没听清，再说一遍'); hideBubble(3000);
+      setState('idle');
+      return;
+    }
+    const blobType = _recMime || mediaRecorder.mimeType || 'audio/webm';
+    await transcribeAndSend(new Blob(audioChunks, { type: blobType }));
   };
-  mediaRecorder.start();
+  // Use small timeslice so we capture data even if onstop is racy
+  try { mediaRecorder.start(500); } catch(e) {
+    console.error('[Mic] start() failed:', e);
+    isRecording = false;
+    voiceBtn.classList.remove('recording');
+    cancelBtn.classList.remove('show');
+    showBubble('无法开始录音: ' + e.message); hideBubble(4000);
+    setState('idle');
+  }
 }
 
 function stopVoice() {
@@ -1260,7 +1313,24 @@ function stopVoice() {
   isRecording = false;
   voiceBtn.classList.remove('recording');
   cancelBtn.classList.remove('show');
-  if (mediaRecorder?.state === 'recording') mediaRecorder.stop();
+  // Show user that we heard the stop click while we wait for onstop → transcribe
+  voiceHint.textContent = currentLang === 'en' ? 'Processing...' : '处理中...';
+  try {
+    if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
+  } catch(e) {
+    console.error('[Mic] stop() failed:', e);
+    setState('idle');
+  }
+  // Safety: if state never advances within 5s, force reset so user can try again
+  const startedAt = Date.now();
+  setTimeout(() => {
+    const stillStuck = voiceHint.textContent === (currentLang === 'en' ? 'Processing...' : '处理中...');
+    if (stillStuck) {
+      console.warn('[Mic] Transcribe never started after 5s — forcing idle');
+      showBubble('录音处理超时，请重试'); hideBubble(4000);
+      setState('idle');
+    }
+  }, 5000);
 }
 
 // Detect if server-side proxy is available (Vercel deployment)
@@ -1275,10 +1345,22 @@ async function hasProxy() {
 }
 function useProxy() { return !config.openaiKey && _proxyAvailable; }
 
+// Pick a sensible filename / extension for the audio blob (Whisper sniffs by extension)
+function audioFilename(blobType) {
+  const t = (blobType || '').toLowerCase();
+  if (t.includes('mp4') || t.includes('m4a')) return 'audio.m4a';
+  if (t.includes('ogg')) return 'audio.ogg';
+  if (t.includes('mpeg') || t.includes('mp3')) return 'audio.mp3';
+  if (t.includes('wav')) return 'audio.wav';
+  return 'audio.webm';
+}
+
 async function transcribeAndSend(blob) {
   const proxy = await hasProxy();
   if (!config.openaiKey && !proxy) { showBubble(t('noKeyMsg')); hideBubble(4000); setState('idle'); return; }
   setState('thinking'); voiceHint.textContent = t('listenHint');
+  const fname = audioFilename(blob.type);
+  console.log('[STT] Sending', fname, blob.type, blob.size, 'bytes');
   try {
     let res;
     if (useProxy()) {
@@ -1294,11 +1376,11 @@ async function transcribeAndSend(blob) {
       res = await fetch('/api/transcribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ audio: base64, filename: 'audio.webm', model: 'whisper-1' })
+        body: JSON.stringify({ audio: base64, filename: fname, model: 'whisper-1' })
       });
     } else {
       // Direct mode: standard FormData to OpenAI
-      const fd = new FormData(); fd.append('file', blob, 'audio.webm'); fd.append('model','whisper-1');
+      const fd = new FormData(); fd.append('file', blob, fname); fd.append('model','whisper-1');
       res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
         method: 'POST', headers: { 'Authorization': `Bearer ${config.openaiKey}` }, body: fd
       });

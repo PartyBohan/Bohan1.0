@@ -150,9 +150,9 @@
   #chat-bubble-area {
     flex: 0 0 auto;
     padding: 0 24px;
-    min-height: 50px; max-height: 120px;
+    min-height: 50px; max-height: 90px;
     overflow-y: auto;
-    display: flex; flex-direction: column; align-items: center;
+    display: flex; align-items: flex-start; justify-content: center;
   }
   #chat-bubble {
     background: rgba(255,255,255,0.85);
@@ -243,20 +243,15 @@
 
   /* ===== Share Card ===== */
   #bubble-share-btn {
-    display: none; /* hidden until .show */
-    background: rgba(255,255,255,0.85);
-    backdrop-filter: blur(10px);
-    border-radius: 20px;
-    padding: 6px 14px;
+    position: fixed; top: 58px; left: 14px; z-index: 100;
+    width: 36px; height: 36px; border-radius: 50%;
     border: none; cursor: pointer;
-    font-size: 13px; color: #9a8a7a;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-    align-items: center; gap: 5px;
-    transition: opacity 0.3s, transform 0.3s;
-    opacity: 0; transform: translateY(4px);
+    background: rgba(255,255,255,0.7); backdrop-filter: blur(8px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.15s;
   }
-  #bubble-share-btn svg { width: 13px; height: 13px; fill: #b0a090; }
-  #bubble-share-btn.show { display: inline-flex; opacity: 1; transform: translateY(0); }
+  #bubble-share-btn svg { width: 17px; height: 17px; fill: #8a7a6a; }
   #bubble-share-btn:active { transform: scale(0.95); }
 
   .history-msg.assistant { position: relative; cursor: pointer; }
@@ -590,13 +585,12 @@
 
   <div id="chat-bubble-area">
     <div id="chat-bubble"></div>
-    <div style="display:flex;justify-content:flex-start;padding-left:24px;margin-top:4px;min-height:0;">
-      <button id="bubble-share-btn" onclick="shareCurrentBubble()">
-        <svg viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/></svg>
-        <span id="share-label"></span>
-      </button>
-    </div>
   </div>
+
+  <!-- Share button — fixed top-left, below history toggle -->
+  <button id="bubble-share-btn" onclick="shareCurrentBubble()">
+    <svg viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/></svg>
+  </button>
 
   <!-- Share overlay -->
   <div id="share-overlay" class="share-overlay" onclick="if(event.target===this)closeShareOverlay()">
@@ -1282,110 +1276,110 @@ function generateShareCard(text) {
   return new Promise((resolve) => {
     const draw = (avatarImg) => {
       const dpr = 2;
-      const W = 640, H = 960;
+      const W = 720, H = 960; // 3:4 portrait
       const c = document.createElement('canvas');
       c.width = W * dpr; c.height = H * dpr;
       const ctx = c.getContext('2d');
       ctx.scale(dpr, dpr);
 
-      // --- Card background (full) ---
+      // --- Avatar takes top 65% ---
+      const imgH = Math.round(H * 0.65); // 624px
+      const textZone = H - imgH; // 336px for text + branding
+
+      // --- Card background ---
       const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
       bgGrad.addColorStop(0, '#f5ede4');
-      bgGrad.addColorStop(0.4, '#ede2d6');
+      bgGrad.addColorStop(0.65, '#ede2d6');
       bgGrad.addColorStop(1, '#e4d7c8');
       ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, W, H);
 
-      // --- Avatar image (top ~42%) ---
-      const imgH = 400;
+      // --- Avatar image (top 65%) ---
       if (avatarImg) {
-        // Draw avatar image, cover-fit into top area
         const iw = avatarImg.naturalWidth || avatarImg.width;
         const ih = avatarImg.naturalHeight || avatarImg.height;
         const scale = Math.max(W / iw, imgH / ih);
         const sw = iw * scale, sh = ih * scale;
         const sx = (W - sw) / 2, sy = (imgH - sh) / 2;
         ctx.save();
-        ctx.beginPath();
-        ctx.rect(0, 0, W, imgH);
-        ctx.clip();
+        ctx.beginPath(); ctx.rect(0, 0, W, imgH); ctx.clip();
         ctx.drawImage(avatarImg, sx, sy, sw, sh);
         ctx.restore();
 
-        // Soft gradient fade from image into card background
-        const fadeGrad = ctx.createLinearGradient(0, imgH - 80, 0, imgH + 20);
+        // Gradient fade — image blends into card bg
+        const fadeGrad = ctx.createLinearGradient(0, imgH - 100, 0, imgH + 10);
         fadeGrad.addColorStop(0, 'rgba(237,226,214,0)');
+        fadeGrad.addColorStop(0.6, 'rgba(237,226,214,0.7)');
         fadeGrad.addColorStop(1, '#ede2d6');
         ctx.fillStyle = fadeGrad;
-        ctx.fillRect(0, imgH - 80, W, 100);
+        ctx.fillRect(0, imgH - 100, W, 110);
       }
 
-      // --- Quote area starts below avatar ---
-      const quoteTop = imgH + 10;
+      // --- Text zone (bottom 35%) ---
+      const tTop = imgH - 10; // overlap slightly into fade area
+      const pad = 40;
 
-      // --- Decorative left accent bar ---
-      const accentGrad = ctx.createLinearGradient(0, quoteTop, 0, quoteTop + 120);
+      // Quote mark (decorative)
+      ctx.fillStyle = 'rgba(232,138,74,0.12)';
+      ctx.font = 'bold 60px Georgia, serif';
+      ctx.fillText('\u201C', pad - 6, tTop + 42);
+
+      // Left accent bar
+      const accentGrad = ctx.createLinearGradient(0, tTop + 20, 0, tTop + 150);
       accentGrad.addColorStop(0, '#e88a4a');
       accentGrad.addColorStop(1, '#f0a36b');
-      ctx.fillStyle = accentGrad;
-      roundRect(ctx, 32, quoteTop + 8, 4, 0, 2); // placeholder, will size after text
 
-      // --- Quote mark ---
-      ctx.fillStyle = 'rgba(232,138,74,0.15)';
-      ctx.font = 'bold 80px Georgia, serif';
-      ctx.fillText('\u201C', 30, quoteTop + 55);
-
-      // --- Main text ---
+      // Main text
       ctx.fillStyle = '#3a3028';
-      ctx.font = '24px -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif';
-      const maxTextW = W - 110;
+      ctx.font = '22px -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif';
+      const maxTextW = W - pad * 2 - 30;
       const lines = wrapText(ctx, text, maxTextW);
-      const lineH = 36;
-      const textStartY = quoteTop + 30;
+      const lineH = 33;
+      const textStartY = tTop + 28;
 
-      // Draw left accent bar (now we know height)
-      const barH = Math.min(lines.length * lineH + 10, H - quoteTop - 120);
+      // Accent bar height matches text
+      const barH = Math.min(lines.length * lineH + 8, textZone - 90);
       ctx.fillStyle = accentGrad;
-      roundRect(ctx, 34, textStartY - 6, 3.5, barH, 2);
+      roundRect(ctx, pad, textStartY - 2, 3.5, barH, 2);
       ctx.fill();
 
-      // Draw text lines
+      // Draw text
       lines.forEach((line, i) => {
         ctx.fillStyle = '#3a3028';
-        ctx.font = '24px -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif';
-        ctx.fillText(line, 54, textStartY + i * lineH + 24);
+        ctx.font = '22px -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif';
+        ctx.fillText(line, pad + 18, textStartY + i * lineH + 22);
       });
 
       // --- Bottom branding ---
-      const bottomY = H - 70;
+      const bottomY = H - 55;
 
       // Thin divider
-      ctx.strokeStyle = 'rgba(180,160,140,0.25)';
+      ctx.strokeStyle = 'rgba(180,160,140,0.2)';
       ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(34, bottomY); ctx.lineTo(W - 34, bottomY); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(pad, bottomY); ctx.lineTo(W - pad, bottomY); ctx.stroke();
 
-      // Role badge
+      // Brand name
       const brand = currentRole === 'zen' ? '\u7985\u5B97\u5C0F\u50E7' : '\u89C6\u611FCEO';
       ctx.fillStyle = '#9a8a7a';
-      ctx.font = '15px -apple-system, "PingFang SC", sans-serif';
-      ctx.fillText("Bohan's Avatar", 34, bottomY + 28);
+      ctx.font = '14px -apple-system, "PingFang SC", sans-serif';
+      ctx.fillText("Bohan's Avatar", pad, bottomY + 24);
 
       // Role tag pill
-      ctx.font = '13px -apple-system, "PingFang SC", sans-serif';
-      const tagW = ctx.measureText(brand).width + 16;
-      ctx.fillStyle = 'rgba(232,138,74,0.12)';
-      roundRect(ctx, 170, bottomY + 14, tagW, 22, 11);
+      ctx.font = '12px -apple-system, "PingFang SC", sans-serif';
+      const tagW = ctx.measureText(brand).width + 14;
+      ctx.fillStyle = 'rgba(232,138,74,0.1)';
+      roundRect(ctx, pad + 130, bottomY + 10, tagW, 20, 10);
       ctx.fill();
       ctx.fillStyle = '#e88a4a';
-      ctx.font = '12px -apple-system, "PingFang SC", sans-serif';
-      ctx.fillText(brand, 178, bottomY + 29);
+      ctx.font = '11px -apple-system, "PingFang SC", sans-serif';
+      ctx.fillText(brand, pad + 137, bottomY + 24);
 
-      // URL right-aligned
-      ctx.fillStyle = 'rgba(180,160,140,0.5)';
-      ctx.font = '12px -apple-system, sans-serif';
+      // URL right
+      ctx.fillStyle = 'rgba(180,160,140,0.45)';
+      ctx.font = '11px -apple-system, sans-serif';
       const urlText = 'bohan.partykeys.org';
       const urlW = ctx.measureText(urlText).width;
-      ctx.fillText(urlText, W - 34 - urlW, bottomY + 28);
+      ctx.fillText(urlText, W - pad - urlW, bottomY + 24);
 
       resolve(c.toDataURL('image/png'));
     };
@@ -1420,12 +1414,12 @@ function wrapText(ctx, text, maxW) {
     }
     if (line) result.push(line);
   }
-  // Limit to ~12 lines to fit card with avatar
-  if (result.length > 12) {
-    result.length = 11;
-    const last = result[10] || '';
+  // Limit to ~7 lines to fit 35% text zone
+  if (result.length > 7) {
+    result.length = 6;
+    const last = result[5] || '';
     result.push(last.slice(0, -1) + '...');
-    result.length = 12;
+    result.length = 7;
   }
   return result;
 }
@@ -1494,17 +1488,30 @@ function showShareToast() {
 }
 
 function shareCurrentBubble() {
-  if (_lastAssistantText) showShareOverlay(_lastAssistantText);
+  const text = _lastAssistantText || getDefaultQuote();
+  showShareOverlay(text);
 }
 
-function showBubbleShareBtn() {
-  document.getElementById('share-label').textContent = t('shareBtn');
-  // Small delay so bubble text renders first
-  setTimeout(() => bubbleShareBtn.classList.add('show'), 600);
+// Default zen quotes for share card when no conversation yet
+const ZEN_QUOTES = [
+  '痛苦是一只紧紧攥住的手\n平静是同一只手慢慢摊开',
+  '指月之指不是月\n你看的那个手指 不是月亮本身',
+  '吃饭的时候吃饭\n走路的时候走路\n这就是全部的秘密',
+  '你不是你的念头\n你是看见念头的那个',
+  '觅心了不可得\n——那个让你不安的心\n你去找它的时候 往往找不到',
+  '焦虑是身体在这里\n脑子在五分钟后的未来\n两个地方把人撕开了',
+  '刚才在哭 现在在笑\n情绪来 情绪走\n它不是你',
+  'The finger pointing at the moon\nis not the moon',
+  'Pain is a tightly clenched fist\nPeace is the same hand\nslowly opening',
+  'You are not your thoughts\nYou are the one watching them pass'
+];
+function getDefaultQuote() {
+  // Rotate daily so it feels fresh
+  const day = Math.floor(Date.now() / 86400000);
+  return ZEN_QUOTES[day % ZEN_QUOTES.length];
 }
-function hideBubbleShareBtn() {
-  bubbleShareBtn.classList.remove('show');
-}
+function showBubbleShareBtn() {} // no-op, button is always visible
+function hideBubbleShareBtn() {} // no-op
 
 // ===== Voice Input =====
 let mediaRecorder = null, audioChunks = [], isRecording = false, micStream = null;
@@ -2382,123 +2389,171 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- Scene renderers ---
-  // City buildings data — generated once
-  let cityBuildings = [];
+  // City scene data
+  let cityShops = [];
   function initCity() {
-    cityBuildings = [];
-    // Back row (distant, shorter, lighter)
-    for (let i = 0; i < 14; i++) {
-      cityBuildings.push({
-        x: i * (W / 12) - W * 0.08 + Math.random() * 10,
-        w: 16 + Math.random() * 24,
-        h: H * (0.08 + Math.random() * 0.12),
-        layer: 0,
-        hue: Math.random() * 20 - 10
-      });
-    }
-    // Front row (closer, taller, darker)
-    for (let i = 0; i < 10; i++) {
-      cityBuildings.push({
-        x: i * (W / 8) - W * 0.05 + Math.random() * 18,
-        w: 22 + Math.random() * 36,
-        h: H * (0.12 + Math.random() * 0.2),
-        layer: 1,
-        hue: Math.random() * 20 - 10
-      });
+    cityShops = [];
+    if (!W || !H) return;
+    const streetY = H * 0.72;
+    let x = -10;
+    while (x < W + 20) {
+      const w = 30 + Math.random() * 45;
+      const floors = 1 + Math.floor(Math.random() * 3); // 1-3 floors
+      const h = floors * (22 + Math.random() * 8);
+      const hasAwning = Math.random() > 0.35;
+      const awningColor = ['#d45d5d','#5da0d4','#d4a85d','#6dba6d','#c47dc4','#d4835d'][Math.floor(Math.random() * 6)];
+      const wallColor = Math.random() > 0.5
+        ? `rgb(${215 + Math.floor(Math.random()*25)},${200 + Math.floor(Math.random()*25)},${180 + Math.floor(Math.random()*25)})`
+        : `rgb(${195 + Math.floor(Math.random()*30)},${185 + Math.floor(Math.random()*25)},${170 + Math.floor(Math.random()*20)})`;
+      const roofStyle = Math.random() > 0.6 ? 'flat' : 'peaked';
+      cityShops.push({ x, w, h, streetY, hasAwning, awningColor, wallColor, roofStyle, floors });
+      x += w + 2 + Math.random() * 4;
     }
   }
 
   function drawWarm(t) {
-    if (cityBuildings.length === 0) initCity();
+    if (cityShops.length === 0) initCity();
+    if (cityShops.length === 0) return; // W/H still 0
 
-    // Warm sunset sky gradient
+    const streetY = H * 0.72;
+
+    // Warm golden-hour sky
     drawGradient([
-      [0, '#f8c87c'], [0.15, '#f5b875'], [0.35, '#f0a868'],
-      [0.55, '#e8c8a8'], [0.75, '#ede2d6'], [1, '#e4d7c8']
+      [0, '#f5c878'], [0.12, '#f2bb6e'], [0.3, '#eeaf65'],
+      [0.5, '#e8c8a0'], [0.65, '#ede0cc'], [1, '#e8d5c0']
     ]);
 
-    // Sun glow (lower, like golden hour)
-    const sunX = W * 0.7, sunY = H * 0.22;
+    // Sun glow — low golden hour
+    const sunX = W * 0.72, sunY = H * 0.18;
     ctx.save();
-    const halo = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, Math.max(W, H) * 0.5);
-    halo.addColorStop(0,    'rgba(255,230,170,0.5)');
-    halo.addColorStop(0.3,  'rgba(255,210,140,0.2)');
-    halo.addColorStop(0.6,  'rgba(255,200,130,0.05)');
-    halo.addColorStop(1,    'rgba(255,200,130,0)');
+    const halo = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, W * 0.55);
+    halo.addColorStop(0,   'rgba(255,228,165,0.45)');
+    halo.addColorStop(0.3, 'rgba(255,210,140,0.15)');
+    halo.addColorStop(1,   'rgba(255,200,130,0)');
     ctx.fillStyle = halo;
     ctx.fillRect(0, 0, W, H);
     ctx.restore();
 
-    // Sun core
-    ctx.save();
-    const core = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, 50);
-    core.addColorStop(0,    'rgba(255,248,220,0.85)');
-    core.addColorStop(0.5,  'rgba(255,235,180,0.35)');
-    core.addColorStop(1,    'rgba(255,225,160,0)');
-    ctx.fillStyle = core;
-    ctx.fillRect(sunX - 70, sunY - 70, 140, 140);
-    ctx.restore();
-
-    // Distant clouds (subtle, warm-tinted)
-    for (let i = 0; i < 4; i++) {
-      const cx = ((t * 4 + i * 130) % (W + 200)) - 100;
-      const cy = H * 0.08 + i * 15;
+    // Drifting clouds
+    for (let i = 0; i < 3; i++) {
+      const cx = ((t * 3.5 + i * 150) % (W + 180)) - 90;
+      const cy = H * 0.06 + i * 18;
       ctx.save();
-      ctx.globalAlpha = 0.2 + i * 0.03;
-      ctx.fillStyle = '#ffe8c8';
+      ctx.globalAlpha = 0.18 + i * 0.04;
+      ctx.fillStyle = '#ffe8cc';
       ctx.beginPath();
-      ctx.ellipse(cx, cy, 60 + i * 10, 12 + i * 2, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx, cy, 55 + i * 12, 10 + i * 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(cx + 30, cy + 3, 35, 8, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
 
-    const skylineY = H * 0.55;
+    // Distant skyline silhouette (very faint, far away)
+    ctx.save();
+    ctx.globalAlpha = 0.12;
+    ctx.fillStyle = '#c8b8a0';
+    ctx.beginPath();
+    ctx.moveTo(0, streetY - 60);
+    for (let x = 0; x <= W; x += 8) {
+      const h = 20 + Math.sin(x * 0.04) * 15 + Math.sin(x * 0.09 + 1) * 10;
+      ctx.lineTo(x, streetY - 60 - h);
+    }
+    ctx.lineTo(W, streetY); ctx.lineTo(0, streetY); ctx.closePath(); ctx.fill();
+    ctx.restore();
 
-    // Back row buildings
-    cityBuildings.filter(b => b.layer === 0).forEach(b => {
-      ctx.fillStyle = `rgba(${185 + b.hue},${170 + b.hue},${155 + b.hue},0.5)`;
-      ctx.fillRect(b.x, skylineY - b.h, b.w, b.h + H);
-    });
+    // --- Street-level shops and buildings ---
+    cityShops.forEach(b => {
+      const bTop = b.streetY - b.h;
 
-    // Front row buildings
-    cityBuildings.filter(b => b.layer === 1).forEach(b => {
-      // Building body
-      const grad = ctx.createLinearGradient(b.x, skylineY - b.h, b.x + b.w, skylineY);
-      grad.addColorStop(0, `rgba(${130 + b.hue},${115 + b.hue},${100 + b.hue},0.55)`);
-      grad.addColorStop(1, `rgba(${150 + b.hue},${135 + b.hue},${120 + b.hue},0.45)`);
-      ctx.fillStyle = grad;
-      ctx.fillRect(b.x, skylineY - b.h, b.w, b.h + H);
+      // Building wall
+      ctx.fillStyle = b.wallColor;
+      ctx.fillRect(b.x, bTop, b.w, b.h);
 
-      // Lit windows — tiny yellow squares
-      const winSize = 2.5, winGap = 6;
-      for (let wy = skylineY - b.h + 8; wy < skylineY - 4; wy += winGap) {
-        for (let wx = b.x + 4; wx < b.x + b.w - 4; wx += winGap) {
-          // Some windows are lit, some dark
-          const lit = Math.sin(wx * 7.3 + wy * 11.1 + b.hue) > -0.15;
+      // Roof
+      if (b.roofStyle === 'peaked') {
+        ctx.fillStyle = '#a08060';
+        ctx.beginPath();
+        ctx.moveTo(b.x - 2, bTop);
+        ctx.lineTo(b.x + b.w / 2, bTop - 8);
+        ctx.lineTo(b.x + b.w + 2, bTop);
+        ctx.closePath();
+        ctx.fill();
+      } else {
+        ctx.fillStyle = '#b09878';
+        ctx.fillRect(b.x - 1, bTop - 3, b.w + 2, 4);
+      }
+
+      // Windows — per floor
+      const winW = 5, winH = 6, winGapX = 10, winGapY = 22;
+      for (let f = 0; f < b.floors; f++) {
+        const fy = bTop + 8 + f * winGapY;
+        for (let wx = b.x + 6; wx + winW < b.x + b.w - 4; wx += winGapX) {
+          const lit = Math.sin(wx * 5.7 + fy * 9.3) > -0.2;
           if (lit) {
-            const flicker = 0.4 + Math.sin(t * 0.8 + wx * 0.3 + wy * 0.2) * 0.15;
-            ctx.fillStyle = `rgba(255,235,170,${flicker})`;
-            ctx.fillRect(wx, wy, winSize, winSize);
+            const glow = 0.35 + Math.sin(t * 0.6 + wx * 0.2 + fy * 0.15) * 0.12;
+            ctx.fillStyle = `rgba(255,235,170,${glow})`;
+          } else {
+            ctx.fillStyle = 'rgba(100,90,80,0.25)';
           }
+          ctx.fillRect(wx, fy, winW, winH);
         }
+      }
+
+      // Door (ground floor center)
+      ctx.fillStyle = 'rgba(120,90,60,0.5)';
+      const doorW = Math.min(8, b.w * 0.2);
+      ctx.fillRect(b.x + b.w / 2 - doorW / 2, b.streetY - 14, doorW, 14);
+
+      // Awning
+      if (b.hasAwning) {
+        ctx.save();
+        ctx.globalAlpha = 0.55;
+        ctx.fillStyle = b.awningColor;
+        ctx.beginPath();
+        ctx.moveTo(b.x, b.streetY - b.h * 0.35);
+        ctx.lineTo(b.x + b.w, b.streetY - b.h * 0.35);
+        ctx.lineTo(b.x + b.w + 4, b.streetY - b.h * 0.35 + 8);
+        ctx.lineTo(b.x - 4, b.streetY - b.h * 0.35 + 8);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
       }
     });
 
-    // Floating warm dust motes
-    for (let i = 0; i < 12; i++) {
-      const px = ((t * 5 + i * 45) % (W + 40)) - 20;
-      const py = H * 0.1 + Math.sin(t * 0.4 + i * 1.5) * H * 0.15 + (i * 28) % (H * 0.4);
-      const tw = 0.4 + Math.sin(t * 1.1 + i * 0.7) * 0.4;
+    // Street / sidewalk
+    ctx.fillStyle = '#d4c4b0';
+    ctx.fillRect(0, streetY, W, H - streetY);
+
+    // Sidewalk edge line
+    ctx.strokeStyle = 'rgba(180,165,145,0.5)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, streetY + 3); ctx.lineTo(W, streetY + 3); ctx.stroke();
+
+    // Road dashes (subtle)
+    ctx.strokeStyle = 'rgba(200,185,165,0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([8, 12]);
+    ctx.beginPath();
+    ctx.moveTo(0, streetY + (H - streetY) * 0.55);
+    ctx.lineTo(W, streetY + (H - streetY) * 0.55);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Warm golden dust motes
+    for (let i = 0; i < 10; i++) {
+      const px = ((t * 4 + i * 50) % (W + 30)) - 15;
+      const py = H * 0.08 + Math.sin(t * 0.35 + i * 1.4) * H * 0.12 + (i * 30) % (H * 0.35);
+      const tw = 0.4 + Math.sin(t * 1.0 + i * 0.65) * 0.4;
       const r = 1 + tw;
       ctx.save();
-      ctx.globalAlpha = 0.2 + tw * 0.3;
+      ctx.globalAlpha = 0.18 + tw * 0.25;
       const dg = ctx.createRadialGradient(px, py, 0, px, py, r * 3);
-      dg.addColorStop(0, 'rgba(255,230,180,0.9)');
-      dg.addColorStop(1, 'rgba(255,220,160,0)');
+      dg.addColorStop(0, 'rgba(255,228,175,0.9)');
+      dg.addColorStop(1, 'rgba(255,218,155,0)');
       ctx.fillStyle = dg;
-      ctx.beginPath();
-      ctx.arc(px, py, r * 3, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.beginPath(); ctx.arc(px, py, r * 3, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     }
   }
@@ -2959,7 +3014,8 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  // Start
+  // Start — must resize first so W/H are valid for particle init
+  resize();
   setupTheme('warm');
   drawFrame();
 })();

@@ -1415,25 +1415,48 @@ function generateShareCard(text) {
         ctx.fillRect(0, imgH - 110, W, 115);
       }
 
-      // --- Insight keyword — large white text straddling boundary ---
+      // --- Insight keyword — large white text with decorative divider ---
       const keyword = extractInsight(text);
       ctx.save();
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      // Large bold font — Chinese single chars get bigger treatment
       const kwFontSize = keyword.length <= 2 ? 52 : 38;
       ctx.font = 'bold ' + kwFontSize + 'px "PingFang SC", "Hiragino Sans GB", -apple-system, sans-serif';
-      const kwY = imgH - 2; // straddle the boundary line
-      // Text shadow / glow for readability against avatar
-      ctx.shadowColor = 'rgba(0,0,0,0.45)';
-      ctx.shadowBlur = 18;
+      const kwY = imgH - 18; // shifted up more into avatar zone
+      const kwTextW = ctx.measureText(keyword).width;
+
+      // Text shadow / glow
+      ctx.shadowColor = 'rgba(0,0,0,0.5)';
+      ctx.shadowBlur = 20;
       ctx.shadowOffsetX = 0;
       ctx.shadowOffsetY = 2;
       ctx.fillStyle = '#ffffff';
       ctx.fillText(keyword, W / 2, kwY);
-      // Double-paint for stronger glow
       ctx.shadowBlur = 8;
       ctx.fillText(keyword, W / 2, kwY);
+      ctx.restore();
+
+      // Decorative divider: ——— · KEYWORD · ———
+      ctx.save();
+      const divY = kwY; // same vertical center as keyword
+      const gap = 14; // space between line end and keyword edge
+      const dotR = 3;
+      const lineLeft = pad + 20;
+      const lineRight = W - pad - 20;
+      const kwHalfW = kwTextW / 2;
+      const lineEndL = W / 2 - kwHalfW - gap - dotR * 2 - 6;
+      const lineStartR = W / 2 + kwHalfW + gap + dotR * 2 + 6;
+
+      // Left line + dot
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(lineLeft, divY); ctx.lineTo(lineEndL, divY); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.beginPath(); ctx.arc(lineEndL + dotR + 4, divY, dotR, 0, Math.PI * 2); ctx.fill();
+
+      // Right dot + line
+      ctx.beginPath(); ctx.arc(lineStartR - dotR - 4, divY, dotR, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(lineStartR, divY); ctx.lineTo(lineRight, divY); ctx.stroke();
       ctx.restore();
 
       // --- Text zone ---
@@ -1505,24 +1528,74 @@ function generateShareCard(text) {
 }
 
 function wrapText(ctx, text, maxW) {
+  // CJK punctuation that must not start a line (行首禁则)
+  const noStart = '，。！？、；：）》」』】〗〕…—～·,.!?;:)>]}\'\"';
+  // CJK punctuation that must not end a line (行尾禁则)
+  const noEnd = '（《「『【〖〔([{';
+
   const result = [];
-  // Split by explicit newlines first
   const paragraphs = text.split('\n');
+
   for (const para of paragraphs) {
     if (!para.trim()) { result.push(''); continue; }
+
+    // Tokenize: split into CJK chars and English/number words
+    // Each token is either a single CJK char/punct or a full English word (with trailing space)
+    const tokens = [];
+    let i = 0;
+    while (i < para.length) {
+      const code = para.charCodeAt(i);
+      // CJK ranges: main CJK, extension, punctuation, symbols
+      const isCJK = (code >= 0x4E00 && code <= 0x9FFF) || (code >= 0x3000 && code <= 0x303F) ||
+        (code >= 0xFF00 && code <= 0xFFEF) || (code >= 0x2000 && code <= 0x206F) ||
+        noStart.includes(para[i]) || noEnd.includes(para[i]);
+      if (isCJK) {
+        tokens.push(para[i]);
+        i++;
+      } else if (para[i] === ' ') {
+        // Attach space to previous token or skip
+        if (tokens.length > 0) tokens[tokens.length - 1] += ' ';
+        else tokens.push(' ');
+        i++;
+      } else {
+        // English word: collect until space or CJK
+        let word = '';
+        while (i < para.length && para[i] !== ' ' && !((para.charCodeAt(i) >= 0x4E00 && para.charCodeAt(i) <= 0x9FFF) || (para.charCodeAt(i) >= 0x3000 && para.charCodeAt(i) <= 0x303F) || (para.charCodeAt(i) >= 0xFF00 && para.charCodeAt(i) <= 0xFFEF))) {
+          word += para[i];
+          i++;
+        }
+        tokens.push(word);
+      }
+    }
+
     let line = '';
-    for (const ch of para) {
-      const test = line + ch;
+    for (let t = 0; t < tokens.length; t++) {
+      const token = tokens[t];
+      const test = line + token;
+
       if (ctx.measureText(test).width > maxW && line) {
-        result.push(line);
-        line = ch;
+        // Before pushing, check: would the next token start with forbidden punctuation?
+        // If so, pull the last char of current line to next line
+        if (noStart.includes(token[0]) && line.length > 0) {
+          const pulled = line[line.length - 1];
+          result.push(line.slice(0, -1));
+          line = pulled + token;
+        } else if (line.length > 0 && noEnd.includes(line[line.length - 1])) {
+          // Last char of line can't end a line — keep it with next
+          result.push(line);
+          line = token;
+        } else {
+          result.push(line);
+          line = token;
+        }
       } else {
         line = test;
       }
     }
     if (line) result.push(line);
   }
-  // Soft cap at 10 lines — truncate very long texts
+
+  // Soft cap at 10 lines
   if (result.length > 10) {
     result.length = 9;
     const last = result[8] || '';

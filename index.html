@@ -1172,15 +1172,26 @@ async function initMic() {
   catch(e) { voiceHint.textContent = currentLang === 'en' ? 'Please allow microphone' : '请允许麦克风权限'; return false; }
 }
 
-function toggleVoice() {
-  // DeepSeek users or no OpenAI key: use browser speech recognition
+async function toggleVoice() {
+  // If user clicks again to stop, don't re-evaluate — just stop the active path
+  if (isRecording) {
+    if (_browserSTT) { stopBrowserSTT(); return; }
+    stopVoice();
+    return;
+  }
+  // CRITICAL: must await hasProxy() before deciding the path, otherwise on the
+  // first click _proxyAvailable is still null and we incorrectly fall through
+  // to the browser SpeechRecognition branch (which is unreliable on desktop
+  // Chrome). After a text message is sent _proxyAvailable becomes true and
+  // voice starts working — that's the symptom "voice only works after typing first".
+  await hasProxy();
   const provider = config.aiProvider || 'openai';
   const canWhisper = provider === 'openai' && (config.openaiKey || _proxyAvailable);
   if (!canWhisper && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-    if (isRecording) stopBrowserSTT(); else startBrowserSTT();
+    startBrowserSTT();
     return;
   }
-  if (isRecording) stopVoice(); else startVoiceRecording();
+  startVoiceRecording();
 }
 
 // ===== Browser Speech Recognition (for DeepSeek / China) =====
@@ -1840,6 +1851,11 @@ window.addEventListener('DOMContentLoaded', () => {
   loadConfig();
   setState('idle');
   checkFirstUse();
+  // Pre-warm proxy detection so the FIRST voice click takes the right path.
+  // Without this, _proxyAvailable is null on first click and toggleVoice falls
+  // back to the unreliable browser SpeechRecognition branch — voice only worked
+  // after the first text message had triggered hasProxy().
+  hasProxy().then(ok => console.log('[Init] proxy available:', ok));
   if (config.openaiKey) {
     setTimeout(() => { showBubble(t('greeting')); hideBubble(5000); }, 1200);
   }

@@ -1272,29 +1272,85 @@ let _avatarImg = null;
   img.src = 'avatar-card.jpg';
 })();
 
+// Extract a short insight keyword from text (2-6 chars, zen-flavored)
+function extractInsight(text) {
+  // Map of keyword patterns → insight labels
+  const rules = [
+    [/焦虑|紧张|慌|急/,       '观'],
+    [/害怕|恐惧|怕/,          '勇'],
+    [/迷茫|迷失|不知道/,      '觉'],
+    [/纠结|选择|犹豫/,        '舍'],
+    [/痛苦|难受|苦/,          '渡'],
+    [/执着|放不下|抓/,        '放'],
+    [/焦虑.*手|攥|握|松/,     '松手'],
+    [/呼吸|吸|停/,            '息'],
+    [/自我|我是谁|身份/,      '无我'],
+    [/镜子|投射|reflection/i, '照'],
+    [/标签|定义|label/i,      '破相'],
+    [/知识|工具|knowledge/i,  '空杯'],
+    [/开悟|enlighten/i,       '悟'],
+    [/月亮|finger|moon/i,     '见月'],
+    [/方向|事业|career/i,     '行'],
+    [/杠杆|leverage/i,        '乘'],
+    [/时间|复利|long.*term/i, '恒'],
+    [/authentic|真/,          '真'],
+    [/anxious|anxiety|fear/i, 'Let go'],
+    [/who am i|identity/i,    'Self'],
+    [/breathe|breath/i,       'Breathe'],
+    [/mirror|project/i,       'Reflect'],
+    [/pain|suffer/i,          'Release'],
+    [/choice|choose|decide/i, 'Choose'],
+  ];
+  for (const [re, label] of rules) {
+    if (re.test(text)) return label;
+  }
+  // Fallback: pick a universal zen keyword
+  const isCN = /[\u4e00-\u9fff]/.test(text);
+  const fallbacks = isCN
+    ? ['观','觉','悟','见','行','空','静','明']
+    : ['See','Be','Now','Still','Open','Wake'];
+  return fallbacks[Math.floor(Math.random() * fallbacks.length)];
+}
+
 function generateShareCard(text) {
   return new Promise((resolve) => {
     const draw = (avatarImg) => {
       const dpr = 2;
-      const W = 720, H = 960; // 3:4 portrait
+      const W = 720;
+      const pad = 40;
+      const lineH = 33;
+      const fontSize = 22;
+      const brandH = 60; // branding area at bottom
+      const insightH = 44; // keyword area between avatar and text
+
+      // --- Pre-measure text to compute dynamic height ---
+      const measureCanvas = document.createElement('canvas');
+      const mCtx = measureCanvas.getContext('2d');
+      mCtx.font = fontSize + 'px -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif';
+      const maxTextW = W - pad * 2 - 30;
+      const lines = wrapText(mCtx, text, maxTextW);
+      const textBlockH = lines.length * lineH;
+
+      // Avatar image zone — fixed at ~520px (comfortable for 3:4 source)
+      const imgH = 520;
+      // Text zone = insight + quote mark + text + padding + branding
+      const textZone = insightH + 36 + textBlockH + 24 + brandH;
+      const H = imgH + textZone;
+
       const c = document.createElement('canvas');
       c.width = W * dpr; c.height = H * dpr;
       const ctx = c.getContext('2d');
       ctx.scale(dpr, dpr);
 
-      // --- Avatar takes top 65% ---
-      const imgH = Math.round(H * 0.65); // 624px
-      const textZone = H - imgH; // 336px for text + branding
-
       // --- Card background ---
       const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
       bgGrad.addColorStop(0, '#f5ede4');
-      bgGrad.addColorStop(0.65, '#ede2d6');
+      bgGrad.addColorStop(imgH / H, '#ede2d6');
       bgGrad.addColorStop(1, '#e4d7c8');
       ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, W, H);
 
-      // --- Avatar image (top 65%) ---
+      // --- Avatar image ---
       if (avatarImg) {
         const iw = avatarImg.naturalWidth || avatarImg.width;
         const ih = avatarImg.naturalHeight || avatarImg.height;
@@ -1306,65 +1362,72 @@ function generateShareCard(text) {
         ctx.drawImage(avatarImg, sx, sy, sw, sh);
         ctx.restore();
 
-        // Gradient fade — image blends into card bg
-        const fadeGrad = ctx.createLinearGradient(0, imgH - 100, 0, imgH + 10);
+        // Gradient fade
+        const fadeGrad = ctx.createLinearGradient(0, imgH - 90, 0, imgH + 5);
         fadeGrad.addColorStop(0, 'rgba(237,226,214,0)');
-        fadeGrad.addColorStop(0.6, 'rgba(237,226,214,0.7)');
+        fadeGrad.addColorStop(0.55, 'rgba(237,226,214,0.65)');
         fadeGrad.addColorStop(1, '#ede2d6');
         ctx.fillStyle = fadeGrad;
-        ctx.fillRect(0, imgH - 100, W, 110);
+        ctx.fillRect(0, imgH - 90, W, 95);
       }
 
-      // --- Text zone (bottom 35%) ---
-      const tTop = imgH - 10; // overlap slightly into fade area
-      const pad = 40;
+      // --- Insight keyword (centered at bottom of avatar zone) ---
+      const keyword = extractInsight(text);
+      ctx.save();
+      ctx.font = 'bold 20px -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif';
+      ctx.fillStyle = '#e88a4a';
+      ctx.textAlign = 'center';
+      const kwW = ctx.measureText(keyword).width;
+      // Draw a subtle pill background
+      ctx.fillStyle = 'rgba(232,138,74,0.1)';
+      roundRect(ctx, W / 2 - kwW / 2 - 16, imgH - 6, kwW + 32, 32, 16);
+      ctx.fill();
+      // Keyword text
+      ctx.fillStyle = '#e88a4a';
+      ctx.font = 'bold 18px -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif';
+      ctx.fillText(keyword, W / 2, imgH + 16);
+      ctx.restore();
 
-      // Quote mark (decorative)
+      // --- Text zone ---
+      const tTop = imgH + insightH;
+
+      // Quote mark
       ctx.fillStyle = 'rgba(232,138,74,0.12)';
-      ctx.font = 'bold 60px Georgia, serif';
-      ctx.fillText('\u201C', pad - 6, tTop + 42);
+      ctx.font = 'bold 50px Georgia, serif';
+      ctx.fillText('\u201C', pad - 4, tTop + 32);
 
       // Left accent bar
-      const accentGrad = ctx.createLinearGradient(0, tTop + 20, 0, tTop + 150);
+      const accentGrad = ctx.createLinearGradient(0, tTop + 10, 0, tTop + 10 + textBlockH);
       accentGrad.addColorStop(0, '#e88a4a');
       accentGrad.addColorStop(1, '#f0a36b');
 
-      // Main text
-      ctx.fillStyle = '#3a3028';
-      ctx.font = '22px -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif';
-      const maxTextW = W - pad * 2 - 30;
-      const lines = wrapText(ctx, text, maxTextW);
-      const lineH = 33;
-      const textStartY = tTop + 28;
-
-      // Accent bar height matches text
-      const barH = Math.min(lines.length * lineH + 8, textZone - 90);
       ctx.fillStyle = accentGrad;
-      roundRect(ctx, pad, textStartY - 2, 3.5, barH, 2);
+      roundRect(ctx, pad, tTop + 14, 3.5, textBlockH + 4, 2);
       ctx.fill();
 
-      // Draw text
+      // Draw text lines
+      const textStartY = tTop + 16;
       lines.forEach((line, i) => {
         ctx.fillStyle = '#3a3028';
-        ctx.font = '22px -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif';
+        ctx.font = fontSize + 'px -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif';
         ctx.fillText(line, pad + 18, textStartY + i * lineH + 22);
       });
 
       // --- Bottom branding ---
-      const bottomY = H - 55;
+      const bottomY = H - brandH + 5;
 
-      // Thin divider
+      // Divider
       ctx.strokeStyle = 'rgba(180,160,140,0.2)';
       ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(pad, bottomY); ctx.lineTo(W - pad, bottomY); ctx.stroke();
 
-      // Brand name
+      // Brand
       const brand = currentRole === 'zen' ? '\u7985\u5B97\u5C0F\u50E7' : '\u89C6\u611FCEO';
       ctx.fillStyle = '#9a8a7a';
       ctx.font = '14px -apple-system, "PingFang SC", sans-serif';
       ctx.fillText("Bohan's Avatar", pad, bottomY + 24);
 
-      // Role tag pill
+      // Role pill
       ctx.font = '12px -apple-system, "PingFang SC", sans-serif';
       const tagW = ctx.measureText(brand).width + 14;
       ctx.fillStyle = 'rgba(232,138,74,0.1)';
@@ -1374,7 +1437,7 @@ function generateShareCard(text) {
       ctx.font = '11px -apple-system, "PingFang SC", sans-serif';
       ctx.fillText(brand, pad + 137, bottomY + 24);
 
-      // URL right
+      // URL
       ctx.fillStyle = 'rgba(180,160,140,0.45)';
       ctx.font = '11px -apple-system, sans-serif';
       const urlText = 'bohan.partykeys.org';
@@ -1387,7 +1450,6 @@ function generateShareCard(text) {
     if (_avatarImg) {
       draw(_avatarImg);
     } else {
-      // Fallback: try loading again
       const img = new Image();
       img.onload = () => { _avatarImg = img; draw(img); };
       img.onerror = () => draw(null);
@@ -1414,12 +1476,12 @@ function wrapText(ctx, text, maxW) {
     }
     if (line) result.push(line);
   }
-  // Limit to ~7 lines to fit 35% text zone
-  if (result.length > 7) {
-    result.length = 6;
-    const last = result[5] || '';
+  // Soft cap at 10 lines — truncate very long texts
+  if (result.length > 10) {
+    result.length = 9;
+    const last = result[8] || '';
     result.push(last.slice(0, -1) + '...');
-    result.length = 7;
+    result.length = 10;
   }
   return result;
 }

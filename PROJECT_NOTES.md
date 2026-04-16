@@ -171,7 +171,15 @@ git push origin main
 - [ ] commit `8b3dbb5`（语音首次点击修复）需要用户在 Mac 终端里 push 到 GitHub
 - [ ] 上线后端到端验证：第一次进页面、不发文字直接点语音，能否正常录-停-转-答-说
 
-## 13. 编辑这份文件的规矩
+## 13. 参考资料更新记录（禅宗小僧角色 system prompt）
+
+| 日期 | 来源 PDF | 改动摘要 |
+|---|---|---|
+| 2026-04-16 | `H610T_Week1_9_10_v5.pdf`（342 页，Liao Cheng 课件） | 重写 `DEFAULTS.systemPrompt` 中【自我反思式教育 / H610T】整段（六维度"我是谁"、投射 vs 反思、标签 vs 实在、知识双刃剑/Mann Gulch、embodied enlightenment、finger pointing at moon）；【禅宗】段补三则公案（达摩见梁武帝"无功德/廓然无圣/不识"、达摩 + 慧可"觅心了不可得"、怀海"刚才在哭现在在笑"）；同步更新"# 怎么挑视角"路由提示。改动文件：`index.html` 唯一一处。修改方式：直接编辑 `DEFAULTS.systemPrompt` 数组字面量。验证：`node` 解析 systemPrompt 数组通过（82 行，4070 字符）。 |
+
+> 角色 system prompt 是**硬编码**在 `index.html` 的 `DEFAULTS.systemPrompt` 数组里的，不是读外部 PDF 文件。换参考资料 = 改这个数组。沙箱 `/uploads/` 只读，旧 PDF 删不掉也不影响线上行为。
+
+## 14. 编辑这份文件的规矩
 
 - 每次修完大 bug，在 §8 加一节："Bug N：标题（commit hash）/ 症状 / 根因 / 修法 / 教训"
 - 改了文件结构 → 更新 §3

@@ -869,9 +869,13 @@ function applyLang() {
   input.placeholder = currentRole === 'zen' ? s.zenPlaceholder : s.ceoPlaceholder;
   // Voice hint
   document.getElementById('voice-hint').textContent = s.voiceHint;
-  // Voice mode toggle button
+  // Voice mode toggle button (guarded — voiceMode may be in TDZ on first call)
   const vlabel = document.getElementById('voice-label');
-  if (vlabel) vlabel.textContent = (typeof voiceMode !== 'undefined' && voiceMode === 'cartoon') ? s.voiceCartoon : s.voiceOriginal;
+  if (vlabel) {
+    let vm = 'original';
+    try { vm = voiceMode; } catch(e) { /* voiceMode declared below, in TDZ on first applyLang() */ }
+    vlabel.textContent = (vm === 'cartoon') ? s.voiceCartoon : s.voiceOriginal;
+  }
   // History panel
   document.querySelector('#history-panel-header h2').textContent = s.historyTitle;
   const emptyEl = document.getElementById('history-empty');

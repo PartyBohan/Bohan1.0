@@ -360,7 +360,9 @@
     transform: translateX(100%);
     transition: transform 0.35s cubic-bezier(0.4,0,0.2,1);
     padding: 24px; overflow-y: auto;
+    display: none;
   }
+  #settings-panel.admin-enabled { display: block; }
   #settings-panel.open { transform: translateX(0); }
   #settings-panel h2 { font-size: 20px; color: #3a3028; margin-bottom: 24px; }
   .sg { margin-bottom: 18px; }
@@ -882,10 +884,11 @@ function toggleLang() {
 applyLang();
 
 // ===== Admin mode: show settings only with ?admin=1 =====
+const IS_ADMIN = new URLSearchParams(window.location.search).get('admin') === '1';
 (function checkAdmin() {
-  const params = new URLSearchParams(window.location.search);
-  if (params.get('admin') === '1') {
+  if (IS_ADMIN) {
     document.getElementById('settings-toggle').classList.add('show');
+    document.getElementById('settings-panel').classList.add('admin-enabled');
   }
 })();
 
@@ -953,15 +956,12 @@ function _restoreChatContext() {
   chatHistory = recent.map(m => ({ role: m.role, content: m.content }));
 }
 
-// ===== First-use: auto-open settings if no API key and no proxy =====
+// ===== First-use: only act in admin mode =====
 async function checkFirstUse() {
+  // Settings are completely hidden unless ?admin=1 is in the URL
+  if (!IS_ADMIN) return;
   const proxy = await hasProxy();
-  if (proxy) {
-    // Proxy available (Vercel) — no key needed, hide settings
-    return;
-  }
-  // No proxy (e.g. GitHub Pages) — show settings so user can enter keys
-  document.getElementById('settings-toggle').classList.add('show');
+  if (proxy) return; // proxy works, no need to prompt for keys
   if (!config.openaiKey) {
     document.getElementById('settings-panel').classList.add('open');
     setTimeout(() => {
@@ -2449,17 +2449,19 @@ const clock = new THREE.Clock();
 
 // ===== Loading Priority: GLB → VRM → PNG =====
 async function loadAvatar() {
-  // 1. Try avatar.glb
-  try {
-    const res = await fetch('avatar.glb', { method: 'HEAD' });
-    if (res.ok) {
-      console.log('[3D] Found avatar.glb, loading...');
-      loadText('正在安住...');
-      loadBar(10);
-      await loadGLB('avatar.glb');
-      return;
-    }
-  } catch(e) {}
+  // 1. Try avatar GLB (compressed first, then original)
+  for (const glbName of ['avatar_compressed.glb', 'avatar.glb']) {
+    try {
+      const res = await fetch(glbName, { method: 'HEAD' });
+      if (res.ok) {
+        console.log('[3D] Found ' + glbName + ', loading...');
+        loadText('正在安住...');
+        loadBar(10);
+        await loadGLB(glbName);
+        return;
+      }
+    } catch(e) {}
+  }
 
   // 2. Try avatar.vrm (treated as glTF)
   try {

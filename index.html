@@ -575,7 +575,7 @@
     <canvas id="avatar-canvas"></canvas>
     <div id="avatar-loading">
       <div class="load-dots"><div class="load-dot"></div><div class="load-dot"></div><div class="load-dot"></div></div>
-      <p id="load-text">正在安住...</p>
+      <p id="load-text">Bohan即将抵达...</p>
       <div class="load-bar-wrap"><div class="load-bar" id="load-bar"></div></div>
     </div>
     <div id="sound-waves"></div>
@@ -927,7 +927,7 @@ const I18N = {
     ttsError: '语音网络错误：', cloneError: '语音克隆错误: ',
     historyTitle: '聊天记录', historyEmpty: '还没有聊天记录', clearHistory: '清空聊天记录',
     bgWarm: '🏙 城市', bgBeach: '🏖 海边', bgMeadow: '🌿 草地', bgSnow: '❄️ 雪中', bgNight: '🌙 星夜',
-    loadText: '正在安住...',
+    loadText: 'Bohan即将抵达...',
     greeting: '嗨！点我试试，或按麦克风说话',
     voiceOriginal: '原声', voiceCartoon: '卡通',
     shareSave: '保存图片', shareClose: '关闭', shareToast: '已保存到相册', shareBtn: '分享'
@@ -3303,7 +3303,7 @@ async function loadAvatar() {
       const res = await fetch(glbName, { method: 'HEAD' });
       if (res.ok) {
         console.log('[3D] Found ' + glbName + ', loading...');
-        loadText('正在安住...');
+        loadText('Bohan即将抵达...');
         loadBar(10);
         await loadGLB(glbName);
         return;
@@ -3316,7 +3316,7 @@ async function loadAvatar() {
     const res = await fetch('avatar.vrm', { method: 'HEAD' });
     if (res.ok) {
       console.log('[3D] Found avatar.vrm, loading...');
-      loadText('正在安住...');
+      loadText('Bohan即将抵达...');
       loadBar(10);
       await loadGLB('avatar.vrm');
       return;
